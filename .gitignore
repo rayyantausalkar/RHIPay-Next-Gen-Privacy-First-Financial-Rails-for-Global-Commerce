@@ -1,0 +1,131 @@
+# ==============================================================================
+# RHIPay (P2P) — Root .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Python, uv & Virtual Environments
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments (uv / venv)
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.ruff_cache/
+
+# ------------------------------------------------------------------------------
+# 2. Node.js, Next.js & Frontend Build Artifacts
+# ------------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js Build Output
+.next/
+**/.next/
+out/
+**/out/
+build/
+**/build/
+coverage/
+**/coverage/
+.vercel
+**/.vercel
+
+# TypeScript & Next build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# ------------------------------------------------------------------------------
+# 3. Environment Variables, Keys & Secrets
+# ------------------------------------------------------------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+!*.env.example
+
+# Cryptographic Keys & Envelopes (Never commit private keys)
+*.pem
+*.key
+*.priv
+*.sec
+id_rsa
+id_ecdsa
+
+# ------------------------------------------------------------------------------
+# 4. Zero-Knowledge Circuit Build Artifacts (SnarkJS / Circom)
+# ------------------------------------------------------------------------------
+*.ptau
+*.wtns
+*.r1cs
+*.sym
+
+# ------------------------------------------------------------------------------
+# 5. OS & IDE Metadata
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
