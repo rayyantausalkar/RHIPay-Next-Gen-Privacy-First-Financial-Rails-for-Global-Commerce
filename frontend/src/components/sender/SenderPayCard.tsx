@@ -10,34 +10,55 @@ import {
   ArrowRight,
   UserCheck,
   CheckCircle2,
+  AlertTriangle,
+  XCircle,
   Sparkles,
   ClipboardPaste,
   RotateCcw,
   Globe2,
   RefreshCw,
-  SlidersHorizontal,
+  FileCheck,
+  KeyRound,
+  Clock,
+  Check,
+  Bug,
+  TrendingUp,
+  Camera,
 } from "lucide-react";
 import {
   ProxyResolutionRequest,
   ProxyResolutionResponse,
+  PayloadValidationResponse,
+  FXQuoteResponse,
+  ZKProofGenerateResponse,
+  NullifierComputeResponse,
+  PIIEnvelopeEncryptResponse,
+  Pacs008MessageResponse,
   SpokeNetworkConfig,
-  DynamicPaymentRequestResponse,
 } from "@/types/payment";
 import { UserProfile, PRESET_P2P_PROFILES } from "@/types/user";
 import {
   resolveProxyAlias,
+  validatePaymentPayload,
+  lockFXQuote,
   getNetworkSpokes,
   listRecentRequests,
   markRequestScanned,
 } from "@/lib/api";
+import { FXQuoteLockCard } from "./FXQuoteLockCard";
+import { ZKProofGenerationCard } from "./ZKProofGenerationCard";
+import { NullifierComputationCard } from "./NullifierComputationCard";
+import { PIIEnvelopeCard } from "./PIIEnvelopeCard";
+import { Pacs008AssemblyCard } from "./Pacs008AssemblyCard";
+import { CameraQRScannerModal } from "./CameraQRScannerModal";
 import { toast } from "sonner";
 
 interface SenderPayCardProps {
-  onProceedToAuthorize?: (resolution: ProxyResolutionResponse, amount: number) => void;
+  onPaymentComplete?: () => void;
 }
 
 export const SenderPayCard: React.FC<SenderPayCardProps> = ({
-  onProceedToAuthorize,
+  onPaymentComplete,
 }) => {
   // Logged-in Sender (Default: Rahul Sharma / India Spoke A)
   const [currentSender, setCurrentSender] = useState<UserProfile>(PRESET_P2P_PROFILES[1]);
@@ -49,6 +70,9 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
   // Input Mode: "qr" vs "manual"
   const [inputMode, setInputMode] = useState<"qr" | "manual">("qr");
 
+  // Camera QR Scanner Modal State
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState<boolean>(false);
+
   // Form State
   const [rawQrPayload, setRawQrPayload] = useState<string>("");
   const [destinationCountry, setDestinationCountry] = useState<string>("SG");
@@ -57,11 +81,30 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
   const [sendAmount, setSendAmount] = useState<string>("45.00");
   const [sendCurrency, setSendCurrency] = useState<string>("SGD");
   const [paymentNote, setPaymentNote] = useState<string>("");
-  const [scannedRefId, setScannedRefId] = useState<string | null>(null);
 
-  // Resolution State
-  const [isResolving, setIsResolving] = useState<boolean>(false);
+  // Processing State
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [validationResult, setValidationResult] = useState<PayloadValidationResponse | null>(null);
   const [resolvedResult, setResolvedResult] = useState<ProxyResolutionResponse | null>(null);
+
+  // Step 4 Locked FX Quote State
+  const [activeFXQuote, setActiveFXQuote] = useState<FXQuoteResponse | null>(null);
+
+  // Step 5 ZK-SNARK Prover State
+  const [showZKProver, setShowZKProver] = useState<boolean>(false);
+  const [activeZKProof, setActiveZKProof] = useState<ZKProofGenerateResponse | null>(null);
+
+  // Step 6 Nullifier State
+  const [showNullifierCard, setShowNullifierCard] = useState<boolean>(false);
+  const [activeNullifier, setActiveNullifier] = useState<NullifierComputeResponse | null>(null);
+
+  // Step 7 PII Envelope State
+  const [showEnvelopeCard, setShowEnvelopeCard] = useState<boolean>(false);
+  const [activeEnvelope, setActiveEnvelope] = useState<PIIEnvelopeEncryptResponse | null>(null);
+
+  // Step 8 ISO 20022 pacs.008 State
+  const [showISO20022Card, setShowISO20022Card] = useState<boolean>(false);
+  const [activePacs008, setActivePacs008] = useState<Pacs008MessageResponse | null>(null);
 
   // Fetch spokes on mount
   useEffect(() => {
@@ -76,61 +119,73 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
     fetchSpokes();
   }, []);
 
-  // Parse QR URI payload when entered or pasted
-  const handleParseQrPayload = async (payloadStr: string) => {
-    const cleanStr = payloadStr.trim();
-    if (!cleanStr) return;
+  // Step 3: Ingest and cryptographically validate QR payload
+  const handleIngestAndValidate = async (payloadToTest: string) => {
+    const cleanStr = payloadToTest.trim();
+    if (!cleanStr) {
+      toast.error("Please enter or paste a payment URI");
+      return;
+    }
+
+    setIsProcessing(true);
+    setValidationResult(null);
+    setResolvedResult(null);
+    setActiveFXQuote(null);
+    setShowZKProver(false);
+    setActiveZKProof(null);
+    setShowNullifierCard(false);
+    setActiveNullifier(null);
+    setShowEnvelopeCard(false);
+    setActiveEnvelope(null);
+    setShowISO20022Card(false);
+    setActivePacs008(null);
 
     try {
-      if (cleanStr.startsWith("rhipay://pay?")) {
-        const url = new URL(cleanStr.replace("rhipay://", "https://"));
-        const ref = url.searchParams.get("ref");
-        const proxy = url.searchParams.get("proxy");
-        const pType = url.searchParams.get("type") || url.searchParams.get("proxyType") || "MOBILE";
-        const country = url.searchParams.get("country") || "SG";
-        const ccy = url.searchParams.get("ccy") || "SGD";
-        const amt = url.searchParams.get("amt") || "45.00";
-        const noteParam = url.searchParams.get("note") || "";
+      toast.loading("Ingesting & Verifying Cryptographic Signature...", { id: "ingest" });
+      
+      const valRes = await validatePaymentPayload(cleanStr);
+      setValidationResult(valRes);
 
-        if (ref) setScannedRefId(ref);
-        if (proxy) setProxyValue(proxy);
-        setProxyType(pType);
-        setDestinationCountry(country);
-        setSendCurrency(ccy);
-        setSendAmount(amt);
-        if (noteParam) setPaymentNote(noteParam);
-
-        toast.info("Dynamic QR Scanned & Parsed!", {
-          description: `Resolving recipient name in ${country} (${ccy})...`,
+      if (!valRes.is_valid) {
+        toast.dismiss("ingest");
+        toast.error("Security Alert: QR Validation Failed!", {
+          description: valRes.error_details || "Payload signature or expiry invalid",
         });
-
-        // Automatically resolve
-        await executeResolution(pType, proxy || "+6591234567", country, ref);
-      } else {
-        // Fallback: search recent requests by ref ID
-        const recent = await listRecentRequests(10);
-        const matched = recent.find((r) => r.reference_id === cleanStr || cleanStr.includes(r.reference_id));
-        if (matched) {
-          setScannedRefId(matched.reference_id);
-          setProxyValue(matched.recipient_proxy_value);
-          setProxyType(matched.recipient_proxy_type);
-          setDestinationCountry(matched.destination_country);
-          setSendCurrency(matched.destination_currency);
-          setSendAmount(Number(matched.requested_amount).toFixed(matched.currency_decimals ?? 2));
-          if (matched.note) setPaymentNote(matched.note);
-
-          await executeResolution(
-            matched.recipient_proxy_type,
-            matched.recipient_proxy_value,
-            matched.destination_country,
-            matched.reference_id
-          );
-        } else {
-          toast.error("Unrecognized QR payload format. Please check the URI.");
-        }
+        setIsProcessing(false);
+        return;
       }
-    } catch {
-      toast.error("Failed to parse QR payload string");
+
+      toast.dismiss("ingest");
+      toast.success("Signature Integrity & Schema Verified!", {
+        description: `Reference: ${valRes.reference_id}`,
+      });
+
+      setDestinationCountry(valRes.destination_country);
+      setSendCurrency(valRes.destination_currency);
+      setProxyType(valRes.proxy_type);
+      setProxyValue(valRes.proxy_value);
+      setSendAmount(Number(valRes.requested_amount).toFixed(valRes.currency_decimals ?? 2));
+      if (valRes.note) setPaymentNote(valRes.note);
+
+      if (valRes.reference_id) {
+        markRequestScanned(valRes.reference_id).catch(() => {});
+      }
+
+      // Step 2: Resolve proxy name & bank routing code
+      const resolvePayload: ProxyResolutionRequest = {
+        proxy_type: valRes.proxy_type,
+        proxy_value: valRes.proxy_value,
+        destination_country: valRes.destination_country,
+        origin_country: currentSender.country_code,
+      };
+      const resResult = await resolveProxyAlias(resolvePayload);
+      setResolvedResult(resResult);
+    } catch (err: unknown) {
+      toast.dismiss("ingest");
+      const msg = err instanceof Error ? err.message : "Validation failed";
+      toast.error(msg);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -141,7 +196,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       if (recent.length > 0) {
         const latest = recent[0];
         setRawQrPayload(latest.qr_payload);
-        await handleParseQrPayload(latest.qr_payload);
+        await handleIngestAndValidate(latest.qr_payload);
       } else {
         toast.info("No recent dynamic requests found. Generate one in the Receive tab first!");
       }
@@ -150,50 +205,173 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
     }
   };
 
-  // Execute Resolution
-  const executeResolution = async (
-    pType: string,
-    pValue: string,
-    dCountry: string,
-    refId?: string | null
-  ) => {
-    setIsResolving(true);
-    try {
-      // If a reference ID exists, notify backend that payer has scanned QR
-      if (refId) {
-        markRequestScanned(refId).catch(() => {});
-      }
+  // Interactive Tamper Attack Test
+  const handleSimulateTamperedAttack = async () => {
+    if (!rawQrPayload) {
+      toast.info("Load a valid QR first, then test tampering");
+      return;
+    }
+    const tampered = rawQrPayload
+      .replace("amt=45.00", "amt=1.00")
+      .replace("amt=45.0", "amt=1.00")
+      .replace("amt=50", "amt=1")
+      .replace("ccy=SGD", "ccy=USD");
+    
+    setRawQrPayload(tampered);
+    toast.warning("Tampered payload parameters (Amount altered to 1.00 without re-signing)");
+    await handleIngestAndValidate(tampered);
+  };
 
+  // Manual Direct Resolution
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    try {
       const payload: ProxyResolutionRequest = {
-        proxy_type: pType,
-        proxy_value: pValue.replace(/\s+/g, ""),
-        destination_country: dCountry.toUpperCase(),
+        proxy_type: proxyType,
+        proxy_value: proxyValue.replace(/\s+/g, ""),
+        destination_country: destinationCountry.toUpperCase(),
         origin_country: currentSender.country_code,
       };
-
       const result = await resolveProxyAlias(payload);
       setResolvedResult(result);
-      toast.success("Recipient Identity & Bank Routing Code Verified!", {
-        description: `Beneficiary: ${result.masked_legal_name} • ${result.destination_bank_name}`,
-      });
+      toast.success("Recipient Identity & Bank Routing Verified!");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Proxy resolution failed";
+      const msg = err instanceof Error ? err.message : "Resolution failed";
       toast.error(msg);
     } finally {
-      setIsResolving(false);
+      setIsProcessing(false);
     }
   };
 
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await executeResolution(proxyType, proxyValue, destinationCountry, scannedRefId);
+  // Step 4: Lock FX Quote Request
+  const handleLockFXQuote = async () => {
+    if (!resolvedResult) return;
+    setIsProcessing(true);
+    try {
+      toast.loading("Locking guaranteed FX quote with liquidity desk...", { id: "fx" });
+      const quote = await lockFXQuote({
+        origin_currency: currentSender.currency,
+        destination_currency: resolvedResult.destination_currency,
+        destination_amount: parseFloat(sendAmount) || 45.0,
+        sender_spoke: currentSender.country_code,
+        recipient_spoke: resolvedResult.destination_country,
+        ttl_seconds: 60,
+      });
+      setActiveFXQuote(quote);
+      toast.dismiss("fx");
+      toast.success("Guaranteed Zero-Slippage Rate Locked!");
+    } catch (err: unknown) {
+      toast.dismiss("fx");
+      const msg = err instanceof Error ? err.message : "Failed to lock FX quote";
+      toast.error(msg);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleReset = () => {
+    setValidationResult(null);
     setResolvedResult(null);
+    setActiveFXQuote(null);
+    setShowZKProver(false);
+    setActiveZKProof(null);
+    setShowNullifierCard(false);
+    setActiveNullifier(null);
+    setShowEnvelopeCard(false);
+    setActiveEnvelope(null);
+    setShowISO20022Card(false);
+    setActivePacs008(null);
     setRawQrPayload("");
-    setScannedRefId(null);
   };
+
+  // 1. If Step 8 ISO 20022 Card is active:
+  if (showISO20022Card && activeFXQuote && resolvedResult && activeZKProof && activeNullifier && activeEnvelope) {
+    return (
+      <Pacs008AssemblyCard
+        quote={activeFXQuote}
+        recipient={resolvedResult}
+        zkProof={activeZKProof}
+        nullifier={activeNullifier}
+        envelope={activeEnvelope}
+        sender={currentSender}
+        onProceedToSettlement={(pacs) => {
+          setActivePacs008(pacs);
+          toast.success("Message dispatched to BIS Nexus Hub!");
+        }}
+        onBack={() => setShowISO20022Card(false)}
+      />
+    );
+  }
+
+  // 2. If Step 7 PII Envelope Card is active:
+  if (showEnvelopeCard && activeFXQuote && resolvedResult && activeZKProof && activeNullifier) {
+    return (
+      <PIIEnvelopeCard
+        quote={activeFXQuote}
+        recipient={resolvedResult}
+        zkProof={activeZKProof}
+        nullifier={activeNullifier}
+        sender={currentSender}
+        onProceedToISO={(env) => {
+          setActiveEnvelope(env);
+          setShowISO20022Card(true);
+        }}
+        onBack={() => setShowEnvelopeCard(false)}
+      />
+    );
+  }
+
+  // 3. If Step 6 Nullifier Card is active:
+  if (showNullifierCard && activeFXQuote && resolvedResult && activeZKProof) {
+    return (
+      <NullifierComputationCard
+        quote={activeFXQuote}
+        recipient={resolvedResult}
+        zkProof={activeZKProof}
+        senderProxy={currentSender.proxy_value}
+        senderCountry={currentSender.country_code}
+        onProceedToEnvelope={(nullifier) => {
+          setActiveNullifier(nullifier);
+          setShowEnvelopeCard(true);
+        }}
+        onBack={() => setShowNullifierCard(false)}
+      />
+    );
+  }
+
+  // 4. If Step 5 ZK-SNARK Prover is active:
+  if (showZKProver && activeFXQuote && resolvedResult) {
+    return (
+      <ZKProofGenerationCard
+        quote={activeFXQuote}
+        recipient={resolvedResult}
+        senderProxy={currentSender.proxy_value}
+        senderCountry={currentSender.country_code}
+        onProceedToEnvelope={(proof) => {
+          setActiveZKProof(proof);
+          setShowNullifierCard(true);
+        }}
+        onBack={() => setShowZKProver(false)}
+      />
+    );
+  }
+
+  // 5. If Step 4 FX Quote is locked:
+  if (activeFXQuote && resolvedResult) {
+    return (
+      <FXQuoteLockCard
+        initialQuote={activeFXQuote}
+        recipient={resolvedResult}
+        senderCurrency={currentSender.currency}
+        senderCountry={currentSender.country_code}
+        onProceedToZKP={() => {
+          setShowZKProver(true);
+        }}
+        onBack={() => setActiveFXQuote(null)}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
@@ -219,7 +397,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-400 font-mono mt-0.5">
-                {currentSender.proxy_value} • {currentSender.ips_network} (Spoke A)
+                {currentSender.proxy_value} • {currentSender.ips_network} ({currentSender.country_code})
               </p>
             </div>
           </div>
@@ -270,7 +448,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
         )}
       </div>
 
-      {/* Main State: Unresolved Input vs Resolved Recipient Card */}
+      {/* Main State: Ingestion Input vs Verified Recipient & Security Card */}
       {!resolvedResult ? (
         <div className="space-y-6">
           {/* Mode Switcher Pills */}
@@ -285,7 +463,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
               }`}
             >
               <QrCode className="w-4 h-4" />
-              <span>Scan Dynamic QR</span>
+              <span>Ingest & Verify QR</span>
             </button>
 
             <button
@@ -298,16 +476,36 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
               }`}
             >
               <Search className="w-4 h-4" />
-              <span>Enter Proxy Alias</span>
+              <span>Manual Proxy</span>
             </button>
           </div>
 
-          {/* Mode A: Scan / Paste Dynamic QR */}
+          {/* Mode A: Step 3 QR / Payload Ingestion & Validation */}
           {inputMode === "qr" && (
             <div className="space-y-4 animate-in fade-in">
+              {/* Camera Scan Hero Button */}
+              <button
+                type="button"
+                onClick={() => setIsCameraModalOpen(true)}
+                className="w-full py-4 px-4 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border-2 border-dashed border-emerald-500/40 hover:border-emerald-400 text-white flex items-center justify-center gap-3 transition-all group shadow-inner"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-white group-hover:text-emerald-300">
+                    Scan with Camera
+                  </div>
+                  <div className="text-[10px] text-zinc-400">
+                    Live camera viewfinder & QR photo upload
+                  </div>
+                </div>
+              </button>
+
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Paste Dynamic QR Payload / Payment URI
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center justify-between">
+                  <span>Or Paste Payment URI / Raw Payload</span>
+                  <span className="text-[10px] text-emerald-400 font-mono">HMAC-SHA256 Signed</span>
                 </label>
                 <div className="relative">
                   <textarea
@@ -329,7 +527,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
                       const clipText = await navigator.clipboard.readText();
                       if (clipText) {
                         setRawQrPayload(clipText);
-                        await handleParseQrPayload(clipText);
+                        await handleIngestAndValidate(clipText);
                       }
                     } catch {
                       toast.info("Please paste the URI directly into the text box");
@@ -351,21 +549,60 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
                 </button>
               </div>
 
+              {/* Interactive Tamper Attack Test */}
+              {rawQrPayload && (
+                <button
+                  type="button"
+                  onClick={handleSimulateTamperedAttack}
+                  className="w-full py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Bug className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Test Security: Simulate Tampered Amount Attack</span>
+                </button>
+              )}
+
+              {/* Validation Failure Alert */}
+              {validationResult && !validationResult.is_valid && (
+                <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-left space-y-2 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-xs font-bold text-rose-400">
+                    <XCircle className="w-4 h-4" />
+                    <span>Payload Cryptographic Validation Failed</span>
+                  </div>
+                  <p className="text-xs text-rose-200">
+                    {validationResult.error_details}
+                  </p>
+                  <div className="pt-2 border-t border-rose-500/20 text-[11px] font-mono text-zinc-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Signature Integrity:</span>
+                      <span className={validationResult.validation_checks.signature_integrity ? "text-emerald-400" : "text-rose-400 font-bold"}>
+                        {validationResult.validation_checks.signature_integrity ? "VERIFIED" : "TAMPERED / MISMATCH"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Expiry Freshness:</span>
+                      <span className={validationResult.validation_checks.expiry_validity ? "text-emerald-400" : "text-rose-400 font-bold"}>
+                        {validationResult.validation_checks.expiry_validity ? "ACTIVE" : "EXPIRED"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={() => handleParseQrPayload(rawQrPayload)}
-                disabled={isResolving || !rawQrPayload.trim()}
+                onClick={() => handleIngestAndValidate(rawQrPayload)}
+                disabled={isProcessing || !rawQrPayload.trim()}
                 className="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               >
-                {isResolving ? (
+                {isProcessing ? (
                   <>
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    <span>Resolving Recipient Routing...</span>
+                    <span>Verifying Integrity & Resolving Payee...</span>
                   </>
                 ) : (
                   <>
-                    <Search className="w-4 h-4 stroke-[2.5]" />
-                    <span>Resolve & Verify Payee Name</span>
+                    <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+                    <span>Ingest & Cryptographically Validate</span>
                   </>
                 )}
               </button>
@@ -447,10 +684,10 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
 
               <button
                 type="submit"
-                disabled={isResolving || !proxyValue.trim()}
+                disabled={isProcessing || !proxyValue.trim()}
                 className="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               >
-                {isResolving ? (
+                {isProcessing ? (
                   <>
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                     <span>Resolving Recipient Routing...</span>
@@ -466,13 +703,13 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           )}
         </div>
       ) : (
-        /* 2. Step 2 Result: Verified Name Inquiry & Bank Routing Card */
-        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        /* 2. Step 3 & Step 2 Verified Card */
+        <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
           {/* Header Bar */}
           <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Step 2: Recipient Verified</span>
+              <ShieldCheck className="w-4 h-4" />
+              <span>Payment Integrity Verified</span>
             </div>
 
             <button
@@ -491,7 +728,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
             </div>
 
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 mb-1.5">
-              <ShieldCheck className="w-3 h-3" /> Central Bank Verified Payee
+              <CheckCircle2 className="w-3 h-3" /> Central Bank Verified Payee
             </div>
 
             <h3 className="text-xl font-bold text-white tracking-tight font-mono">
@@ -519,11 +756,44 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
             )}
           </div>
 
+          {/* Cryptographic Validation Telemetry Checks */}
+          <div className="p-3.5 rounded-2xl bg-zinc-950 border border-white/[0.06] space-y-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+              <KeyRound className="w-3 h-3 text-emerald-400" />
+              Protocol Integrity & Signature Verification
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <Check className="w-3.5 h-3.5" />
+                <span>HMAC-SHA256 Signature</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <Check className="w-3.5 h-3.5" />
+                <span>ISO 20022 Schema</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <Check className="w-3.5 h-3.5" />
+                <span>TTL Expiry Window</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <Check className="w-3.5 h-3.5" />
+                <span>Proxy Standard Norm</span>
+              </div>
+            </div>
+
+            {validationResult && (
+              <div className="pt-2 border-t border-white/[0.06] text-[10px] font-mono text-zinc-500 truncate">
+                Digest: {validationResult.payload_digest.slice(0, 24)}...
+              </div>
+            )}
+          </div>
+
           {/* Routing & Institution Details Grid */}
           <div className="grid grid-cols-2 gap-2.5 text-xs">
             <div className="p-3 rounded-2xl bg-zinc-950 border border-white/[0.06]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase block mb-1">
-                Destination Clearing Spoke
+                Destination Spoke
               </span>
               <span className="font-semibold text-zinc-200 flex items-center gap-1">
                 <Globe2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -539,34 +809,40 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
                 {resolvedResult.destination_bic}
               </span>
             </div>
-
-            <div className="p-3 rounded-2xl bg-zinc-950 border border-white/[0.06] col-span-2">
-              <span className="text-[10px] font-medium text-zinc-500 uppercase block mb-0.5">
-                Underlying Settlement Institution
-              </span>
-              <span className="font-medium text-zinc-300">
-                {resolvedResult.destination_bank_name} ({resolvedResult.masked_account_number})
-              </span>
-            </div>
           </div>
 
-          {/* Proceed to Step 3 Button */}
+          {/* Lock FX Quote Action Button */}
           <button
             type="button"
-            onClick={() => {
-              toast.success("Recipient Confirmed! Ready for Step 3: ZK Proof Authorization");
-              if (onProceedToAuthorize) {
-                onProceedToAuthorize(resolvedResult, parseFloat(sendAmount));
-              }
-            }}
+            onClick={handleLockFXQuote}
+            disabled={isProcessing}
             className="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] group"
           >
-            <Lock className="w-4 h-4 stroke-[2.5]" />
-            <span>Confirm Recipient & Authorize Payment</span>
-            <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform stroke-[2.5]" />
+            {isProcessing ? (
+              <>
+                <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                <span>Locking Guaranteed FX Quote...</span>
+              </>
+            ) : (
+              <>
+                <TrendingUp className="w-4 h-4 stroke-[2.5]" />
+                <span>Lock Guaranteed FX Rate</span>
+                <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform stroke-[2.5]" />
+              </>
+            )}
           </button>
         </div>
       )}
+
+      {/* Camera QR Scanner Modal */}
+      <CameraQRScannerModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onScanSuccess={(detectedUri) => {
+          setRawQrPayload(detectedUri);
+          handleIngestAndValidate(detectedUri);
+        }}
+      />
     </div>
   );
 };

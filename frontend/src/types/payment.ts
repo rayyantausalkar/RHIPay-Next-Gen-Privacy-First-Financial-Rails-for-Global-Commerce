@@ -17,9 +17,9 @@ export type RequestStatus =
   | "CANCELLED";
 
 export interface SpokeNetworkConfig {
-  country_code: string; // ISO 3166-1 alpha-2
+  country_code: string;
   country_name: string;
-  currency: string; // ISO 4217
+  currency: string;
   flag_emoji: string;
   ips_scheme_name: string;
   supported_proxy_types: string[];
@@ -56,10 +56,10 @@ export interface DynamicPaymentRequestCreate {
   recipient_name: string;
   recipient_proxy_type: string;
   recipient_proxy_value: string;
-  destination_country: string; // ISO 3166-1 alpha-2 (e.g. SG, IN, AE, US, GB, JP)
-  destination_currency: string; // ISO 4217 (e.g. SGD, INR, AED, USD, EUR, JPY)
+  destination_country: string;
+  destination_currency: string;
   requested_amount: number;
-  origin_spoke?: string; // Optional Originating Spoke
+  origin_spoke?: string;
   note?: string;
   expiry_seconds?: number;
   purpose_code?: string;
@@ -106,7 +106,7 @@ export interface ProxyValidationResponse {
 export interface ProxyResolutionRequest {
   proxy_type: string;
   proxy_value: string;
-  destination_country: string; // ISO 3166-1 alpha-2
+  destination_country: string;
   origin_country?: string;
 }
 
@@ -125,4 +125,276 @@ export interface ProxyResolutionResponse {
   recipient_compliance_public_key: string;
   resolution_timestamp: string;
   verification_token: string;
+}
+
+export interface ValidationChecks {
+  schema_compliance: boolean;
+  signature_integrity: boolean;
+  expiry_validity: boolean;
+  proxy_standard: boolean;
+}
+
+export interface PayloadValidationResponse {
+  is_valid: boolean;
+  signature_verified: boolean;
+  is_expired: boolean;
+  reference_id: string;
+  recipient_name: string;
+  proxy_type: string;
+  proxy_value: string;
+  destination_country: string;
+  destination_currency: string;
+  origin_spoke?: string;
+  requested_amount: number | string;
+  currency_decimals: number;
+  amount_in_minor_units: number;
+  expires_at: string;
+  purpose_code: string;
+  note?: string;
+  recipient_public_key?: string;
+  payload_digest: string;
+  signature: string;
+  validation_checks: ValidationChecks;
+  error_details?: string;
+}
+
+export interface FXQuoteLockRequest {
+  origin_currency: string;
+  destination_currency: string;
+  destination_amount: number;
+  sender_spoke: string;
+  recipient_spoke: string;
+  ttl_seconds?: number;
+}
+
+export interface FXQuoteResponse {
+  quote_id: string;
+  origin_currency: string;
+  destination_currency: string;
+  fx_rate: number | string;
+  inverse_fx_rate: number | string;
+  destination_amount: number | string;
+  origin_debit_amount: number | string;
+  destination_amount_in_cents: number;
+  origin_debit_amount_in_cents: number;
+  origin_decimals: number;
+  destination_decimals: number;
+  fx_markup_bps: number;
+  fx_provider_id: string;
+  fx_provider_name: string;
+  created_at: string;
+  expires_at: string;
+  ttl_remaining_seconds: number;
+  quote_signature: string;
+  slippage_protection: boolean;
+}
+
+export interface FXQuoteVerifyResponse {
+  is_valid: boolean;
+  signature_verified: boolean;
+  is_expired: boolean;
+  quote_id: string;
+  origin_currency: string;
+  destination_currency: string;
+  fx_rate: number | string;
+  destination_amount: number | string;
+  origin_debit_amount: number | string;
+  ttl_remaining_seconds: number;
+  error_details?: string;
+}
+
+export interface ZKProofGenerateRequest {
+  identity_proxy: string;
+  sender_spoke: string;
+  quote_id: string;
+  kyc_tier_required?: number;
+}
+
+export interface ZKProofGenerateResponse {
+  proof_id: string;
+  protocol: string;
+  curve: string;
+  merkle_root: string;
+  nullifier_hash: string;
+  quote_id_hash: string;
+  leaf_commitment: string;
+  generation_time_ms: number;
+  pi_a: string[];
+  pi_b: string[][];
+  pi_c: string[];
+  public_signals: string[];
+  proof: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ZKProofVerifyRequest {
+  merkle_root: string;
+  nullifier_hash: string;
+  quote_id: string;
+  proof: Record<string, unknown>;
+  public_signals: string[];
+}
+
+export interface ZKProofVerifyResponse {
+  is_valid: boolean;
+  nullifier_is_fresh: boolean;
+  merkle_root_verified: boolean;
+  verification_time_ms: number;
+  error_details?: string;
+}
+
+export interface MerkleRootResponse {
+  merkle_root: string;
+  tree_depth: number;
+  total_members: number;
+  last_updated: string;
+}
+
+export interface NullifierComputeRequest {
+  identity_proxy: string;
+  sender_spoke: string;
+  quote_id: string;
+  nonce?: string;
+}
+
+export interface NullifierComputeResponse {
+  nullifier_hash: string;
+  identity_secret_hash: string;
+  transaction_seed_hash: string;
+  leaf_index: number;
+  protocol: string;
+  is_fresh: boolean;
+  computed_at: string;
+}
+
+export interface NullifierVerifyRequest {
+  nullifier_hash: string;
+}
+
+export interface NullifierVerifyResponse {
+  nullifier_hash: string;
+  is_fresh: boolean;
+  is_spent: boolean;
+  spent_at?: string;
+  associated_quote_id?: string;
+}
+
+export interface NullifierSpendRequest {
+  nullifier_hash: string;
+  quote_id: string;
+}
+
+export interface NullifierSpendResponse {
+  nullifier_hash: string;
+  status: string;
+  spent_at: string;
+  quote_id: string;
+}
+
+export interface RegulatorPublicKeyResponse {
+  country_code: string;
+  regulator_name: string;
+  compliance_node_id: string;
+  public_key_pem: string;
+  key_algorithm: string;
+}
+
+export interface PIIEnvelopeEncryptRequest {
+  destination_spoke: string;
+  quote_id: string;
+  originator_name: string;
+  originator_proxy: string;
+  originator_address: string;
+  originator_national_id: string;
+  originator_bic: string;
+  beneficiary_name: string;
+  beneficiary_proxy: string;
+  beneficiary_bic: string;
+}
+
+export interface PIIEnvelopeEncryptResponse {
+  envelope_id: string;
+  destination_spoke: string;
+  recipient_regulator_id: string;
+  encryption_algorithm: string;
+  encrypted_aes_key: string;
+  encrypted_pii_ciphertext: string;
+  iv: string;
+  auth_tag: string;
+  envelope_digest: string;
+  created_at: string;
+}
+
+export interface PIIEnvelopeDecryptRequest {
+  destination_spoke: string;
+  envelope_id: string;
+  encrypted_aes_key: string;
+  encrypted_pii_ciphertext: string;
+  iv: string;
+  auth_tag: string;
+}
+
+export interface PIIEnvelopeDecryptResponse {
+  is_valid: boolean;
+  envelope_id: string;
+  originator_name: string;
+  originator_proxy: string;
+  originator_address: string;
+  originator_national_id: string;
+  originator_bic: string;
+  beneficiary_name: string;
+  beneficiary_proxy: string;
+  beneficiary_bic: string;
+  fatf_travel_rule_compliant: boolean;
+  decrypted_at: string;
+  error_details?: string;
+}
+
+export interface Pacs008AssembleRequest {
+  quote_id: string;
+  sender_proxy: string;
+  sender_spoke: string;
+  sender_currency: string;
+  sender_bic: string;
+  recipient_proxy: string;
+  recipient_spoke: string;
+  recipient_currency: string;
+  recipient_bic: string;
+  recipient_name: string;
+  destination_amount: number;
+  origin_debit_amount: number;
+  fx_rate: number;
+  zk_proof: Record<string, unknown>;
+  nullifier_hash: string;
+  encrypted_envelope: Record<string, unknown>;
+  purpose_code?: string;
+  payment_note?: string;
+}
+
+export interface Pacs008MessageResponse {
+  message_id: string;
+  uetr: string;
+  end_to_end_id: string;
+  message_type: string;
+  settlement_method: string;
+  clearing_system: string;
+  instructed_amount: number;
+  instructed_currency: string;
+  settlement_amount: number;
+  settlement_currency: string;
+  exchange_rate: number;
+  xml_payload: string;
+  canonical_json: Record<string, unknown>;
+  is_valid: boolean;
+  created_at: string;
+}
+
+export interface Pacs008ValidateRequest {
+  xml_payload: string;
+}
+
+export interface Pacs008ValidateResponse {
+  schema_valid: boolean;
+  message_type: string;
+  details?: string;
 }
