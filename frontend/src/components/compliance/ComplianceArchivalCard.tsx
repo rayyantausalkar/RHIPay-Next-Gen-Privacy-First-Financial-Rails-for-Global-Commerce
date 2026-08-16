@@ -34,7 +34,7 @@ interface ComplianceArchivalCardProps {
   pacs008: Pacs008MessageResponse;
   screeningResult: SanctionsScreeningResponse;
   ledgerResult: LedgerCommitmentResponse;
-  onPaymentComplete: () => void;
+  onProceedToRecipientPush: (archivalRes: ComplianceArchivalResponse) => void;
   onBack: () => void;
 }
 
@@ -42,7 +42,7 @@ export const ComplianceArchivalCard: React.FC<ComplianceArchivalCardProps> = ({
   pacs008,
   screeningResult,
   ledgerResult,
-  onPaymentComplete,
+  onProceedToRecipientPush,
   onBack,
 }) => {
   const [isArchiving, setIsArchiving] = useState<boolean>(true);
@@ -220,13 +220,13 @@ export const ComplianceArchivalCard: React.FC<ComplianceArchivalCardProps> = ({
           <button
             type="button"
             onClick={() => {
-              toast.success("Cross-Border Settlement Complete! Instant Cleared Funds Delivered.");
-              onPaymentComplete();
+              toast.success("Compliance Audit Sealed! Broadcasting Instant Recipient Push Telemetry.");
+              onProceedToRecipientPush(archiveResult);
             }}
             className="w-full py-3.5 sm:py-4 px-5 sm:px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] group"
           >
             <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-            <span className="truncate">Complete Settlement & Return</span>
+            <span className="truncate">Proceed to Recipient Push Telemetry</span>
             <ArrowRight className="w-4 h-4 ml-0.5 group-hover:translate-x-1 transition-transform stroke-[2.5] flex-shrink-0" />
           </button>
         </div>

@@ -48,6 +48,8 @@ import {
   SanctionsScreeningResponse,
   LedgerCommitmentResponse,
   ComplianceArchivalResponse,
+  RecipientPushNotificationResponse,
+  SenderReceiptResponse,
   SpokeNetworkConfig,
 } from "@/types/payment";
 import { UserProfile, PRESET_P2P_PROFILES } from "@/types/user";
@@ -58,6 +60,7 @@ import {
   getNetworkSpokes,
   listRecentRequests,
   markRequestScanned,
+  completePaymentRequest,
 } from "@/lib/api";
 import { FXQuoteLockCard } from "./FXQuoteLockCard";
 import { ZKProofGenerationCard } from "./ZKProofGenerationCard";
@@ -78,6 +81,8 @@ import { EnclaveDecryptionCard } from "../compliance/EnclaveDecryptionCard";
 import { SanctionsScreeningCard } from "../compliance/SanctionsScreeningCard";
 import { DoubleEntryCommitmentCard } from "../settlement/DoubleEntryCommitmentCard";
 import { ComplianceArchivalCard } from "../compliance/ComplianceArchivalCard";
+import { RecipientPushToastModal } from "../receiver/RecipientPushToastModal";
+import { SenderDigitalReceiptCard } from "./SenderDigitalReceiptCard";
 import { CameraQRScannerModal } from "./CameraQRScannerModal";
 import { PaymentStageIndicator, PaymentStage } from "./PaymentStageIndicator";
 import { toast } from "sonner";
@@ -191,6 +196,12 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
   const [showArchivalCard, setShowArchivalCard] = useState<boolean>(false);
   const [activeArchivalData, setActiveArchivalData] = useState<ComplianceArchivalResponse | null>(null);
 
+  // Step 23 Recipient Push Notification Modal State
+  const [showPushModal, setShowPushModal] = useState<boolean>(false);
+
+  // Step 24 Sender Digital Receipt State
+  const [showReceiptCard, setShowReceiptCard] = useState<boolean>(false);
+
   // Fetch spokes on mount
   useEffect(() => {
     const fetchSpokes = async () => {
@@ -206,6 +217,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
 
   // Compute Current Stage
   const getCurrentStage = (): PaymentStage => {
+    if (showReceiptCard) return "sender_receipt";
+    if (showPushModal) return "push_notify";
     if (showArchivalCard) return "compliance_archival";
     if (showLedgerCard) return "ledger_commit";
     if (showSanctionsCard) return "sanctions_screening";
@@ -231,6 +244,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
   // Stage Navigation Handler
   const handleNavigateStage = (target: PaymentStage) => {
     if (target === "ingest") {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -251,6 +266,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowZKProver(false);
       setActiveFXQuote(null);
     } else if (target === "quote" && activeFXQuote) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -270,6 +287,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowNullifierCard(false);
       setShowZKProver(false);
     } else if (target === "zkp" && activeZKProof) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -289,6 +308,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowNullifierCard(false);
       setShowZKProver(true);
     } else if (target === "nullifier" && activeNullifier) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -307,6 +328,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowEnvelopeCard(false);
       setShowNullifierCard(true);
     } else if (target === "envelope" && activeEnvelope) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -324,6 +347,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowISO20022Card(false);
       setShowEnvelopeCard(true);
     } else if (target === "iso20022" && activePacs008) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -340,6 +365,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowGatewayCard(false);
       setShowISO20022Card(true);
     } else if (target === "gateway" && activeGatewayData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -355,6 +382,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowRoutingCard(false);
       setShowGatewayCard(true);
     } else if (target === "routing" && activeRoutingData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -369,6 +398,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowMerkleCard(false);
       setShowRoutingCard(true);
     } else if (target === "merkle" && activeMerkleData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -382,6 +413,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowGroth16Card(false);
       setShowMerkleCard(true);
     } else if (target === "groth16" && activeGroth16Data) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -394,6 +427,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowNullifierCheckCard(false);
       setShowGroth16Card(true);
     } else if (target === "anti_replay" && activeNullifierCheckData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -405,6 +440,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowGateCard(false);
       setShowNullifierCheckCard(true);
     } else if (target === "crypto_gate" && activeGateData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -415,6 +452,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowSpokeACard(false);
       setShowGateCard(true);
     } else if (target === "spoke_a" && activeSpokeAData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -424,6 +463,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowFxSwapCard(false);
       setShowSpokeACard(true);
     } else if (target === "fx_swap" && activeFxSwapData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -432,6 +473,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowSpokeBCard(false);
       setShowFxSwapCard(true);
     } else if (target === "spoke_b" && activeSpokeBData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
@@ -439,23 +482,38 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
       setShowTravelRuleCard(false);
       setShowSpokeBCard(true);
     } else if (target === "travel_rule" && activeTravelRuleData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
       setShowEnclaveCard(false);
       setShowTravelRuleCard(true);
     } else if (target === "enclave_decryption" && activeEnclaveData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(false);
       setShowEnclaveCard(true);
     } else if (target === "sanctions_screening" && activeSanctionsData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(false);
       setShowSanctionsCard(true);
     } else if (target === "ledger_commit" && activeLedgerData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
       setShowArchivalCard(false);
       setShowLedgerCard(true);
+    } else if (target === "compliance_archival" && activeArchivalData) {
+      setShowReceiptCard(false);
+      setShowPushModal(false);
+      setShowArchivalCard(true);
+    } else if (target === "push_notify") {
+      setShowReceiptCard(false);
+      setShowPushModal(true);
     }
   };
 
@@ -507,6 +565,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
     setActiveLedgerData(null);
     setShowArchivalCard(false);
     setActiveArchivalData(null);
+    setShowPushModal(false);
+    setShowReceiptCard(false);
 
     try {
       toast.loading("Ingesting & Verifying Cryptographic Signature...", { id: "ingest" });
@@ -678,6 +738,8 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
     setActiveLedgerData(null);
     setShowArchivalCard(false);
     setActiveArchivalData(null);
+    setShowPushModal(false);
+    setShowReceiptCard(false);
     setRawQrPayload("");
   };
 
@@ -691,20 +753,47 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
         />
       )}
 
-      {/* 1. If Step 22 Compliance Archival Card is active: */}
-      {showArchivalCard && activePacs008 && activeSanctionsData && activeLedgerData ? (
+      {/* 1. If Step 24 Sender Digital Receipt Card is active: */}
+      {showReceiptCard && activePacs008 ? (
+        <SenderDigitalReceiptCard
+          pacs008={activePacs008}
+          archivalResult={activeArchivalData ?? undefined}
+          onNewPayment={() => {
+            handleReset();
+            onPaymentComplete?.();
+          }}
+        />
+      ) : showPushModal && activePacs008 ? (
+        /* 2. If Step 23 Recipient Push Notification is active: */
+        <RecipientPushToastModal
+          pacs008={activePacs008}
+          archivalResult={activeArchivalData ?? undefined}
+          onProceedToSenderReceipt={() => {
+            setShowPushModal(false);
+            setShowReceiptCard(true);
+            toast.success("Transaction Finality Achieved! Displaying Sender Digital Receipt.");
+          }}
+          onDone={() => {
+            handleReset();
+            onPaymentComplete?.();
+          }}
+          onBack={() => setShowPushModal(false)}
+        />
+      ) : showArchivalCard && activePacs008 && activeSanctionsData && activeLedgerData ? (
+        /* 3. If Step 22 Compliance Archival Card is active: */
         <ComplianceArchivalCard
           pacs008={activePacs008}
           screeningResult={activeSanctionsData}
           ledgerResult={activeLedgerData}
-          onPaymentComplete={() => {
-            handleReset();
-            onPaymentComplete?.();
+          onProceedToRecipientPush={(archivalRes) => {
+            setActiveArchivalData(archivalRes);
+            setShowPushModal(true);
+            toast.success("Archival Sealed! Broadcasting Push Notification to Recipient.");
           }}
           onBack={() => setShowArchivalCard(false)}
         />
       ) : showLedgerCard && activePacs008 && activeSanctionsData ? (
-        /* 2. If Step 21 Double-Entry Ledger Commitment Card is active: */
+        /* 4. If Step 21 Double-Entry Ledger Commitment Card is active: */
         <DoubleEntryCommitmentCard
           pacs008={activePacs008}
           screeningResult={activeSanctionsData}
@@ -716,7 +805,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowLedgerCard(false)}
         />
       ) : showSanctionsCard && activePacs008 && activeEnclaveData ? (
-        /* 3. If Step 20 Sanctions Screening Card is active: */
+        /* 5. If Step 20 Sanctions Screening Card is active: */
         <SanctionsScreeningCard
           pacs008={activePacs008}
           enclaveResult={activeEnclaveData}
@@ -728,7 +817,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowSanctionsCard(false)}
         />
       ) : showEnclaveCard && activePacs008 && activeEnvelope && activeTravelRuleData ? (
-        /* 4. If Step 19 Enclave Decryption Card is active: */
+        /* 6. If Step 19 Enclave Decryption Card is active: */
         <EnclaveDecryptionCard
           pacs008={activePacs008}
           envelope={activeEnvelope}
@@ -741,7 +830,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowEnclaveCard(false)}
         />
       ) : showTravelRuleCard && activePacs008 && activeEnvelope && activeSpokeBData ? (
-        /* 5. If Step 18 Travel Rule Dispatch Card is active: */
+        /* 7. If Step 18 Travel Rule Dispatch Card is active: */
         <TravelRuleDispatchCard
           pacs008={activePacs008}
           envelope={activeEnvelope}
@@ -754,20 +843,23 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowTravelRuleCard(false)}
         />
       ) : showSpokeBCard && activePacs008 && activeFxSwapData && resolvedResult ? (
-        /* 6. If Step 17 Spoke B Execution Card is active: */
+        /* 8. If Step 17 Spoke B Execution Card is active: */
         <SpokeBSettlementCard
           pacs008={activePacs008}
           swapResult={activeFxSwapData}
           recipient={resolvedResult}
           onProceedToPacs002={(spokeBRes) => {
             setActiveSpokeBData(spokeBRes);
+            if (validationResult?.reference_id) {
+              completePaymentRequest(validationResult.reference_id).catch(() => {});
+            }
             setShowTravelRuleCard(true);
             toast.success("Spoke B Settled! Dispatching FATF Travel Rule Envelope.");
           }}
           onBack={() => setShowSpokeBCard(false)}
         />
       ) : showFxSwapCard && activePacs008 && activeSpokeAData ? (
-        /* 7. If Step 16 Atomic FX Swap Card is active: */
+        /* 9. If Step 16 Atomic FX Swap Card is active: */
         <AtomicFxSwapCard
           pacs008={activePacs008}
           spokeAResult={activeSpokeAData}
@@ -779,7 +871,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowFxSwapCard(false)}
         />
       ) : showSpokeACard && activePacs008 && activeGateData ? (
-        /* 8. If Step 15 Spoke A Execution Card is active: */
+        /* 10. If Step 15 Spoke A Execution Card is active: */
         <SpokeASettlementCard
           pacs008={activePacs008}
           gateResult={activeGateData}
@@ -796,7 +888,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowSpokeACard(false)}
         />
       ) : showGateCard && activePacs008 && activeRoutingData && activeMerkleData && activeGroth16Data && activeNullifierCheckData ? (
-        /* 9. If Step 14 Cryptographic Gating Card is active: */
+        /* 11. If Step 14 Cryptographic Gating Card is active: */
         <CryptographicGatingCard
           pacs008={activePacs008}
           routeData={activeRoutingData}
@@ -811,7 +903,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowGateCard(false)}
         />
       ) : showNullifierCheckCard && activePacs008 && activeRoutingData && activeMerkleData && activeGroth16Data ? (
-        /* 10. If Step 13 Anti-Replay Nullifier Check is active: */
+        /* 12. If Step 13 Anti-Replay Nullifier Check is active: */
         <NullifierRegistryCheckCard
           pacs008={activePacs008}
           routeData={activeRoutingData}
@@ -825,7 +917,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowNullifierCheckCard(false)}
         />
       ) : showGroth16Card && activePacs008 && activeRoutingData && activeMerkleData ? (
-        /* 11. If Step 12 Groth16 Card is active: */
+        /* 13. If Step 12 Groth16 Card is active: */
         <Groth16VerificationCard
           pacs008={activePacs008}
           routeData={activeRoutingData}
@@ -838,7 +930,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowGroth16Card(false)}
         />
       ) : showMerkleCard && activePacs008 && activeRoutingData ? (
-        /* 12. If Step 11 Merkle Card is active: */
+        /* 14. If Step 11 Merkle Card is active: */
         <MerkleRootValidationCard
           pacs008={activePacs008}
           routeData={activeRoutingData}
@@ -850,7 +942,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowMerkleCard(false)}
         />
       ) : showRoutingCard && activePacs008 && activeGatewayData ? (
-        /* 13. If Step 10 Supplementary Routing Card is active: */
+        /* 15. If Step 10 Supplementary Routing Card is active: */
         <SupplementaryRoutingCard
           pacs008={activePacs008}
           gatewayData={activeGatewayData}
@@ -862,7 +954,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowRoutingCard(false)}
         />
       ) : showGatewayCard && activePacs008 ? (
-        /* 14. If Step 9 Gateway Card is active: */
+        /* 16. If Step 9 Gateway Card is active: */
         <GatewayIngestionCard
           pacs008={activePacs008}
           originSpoke={currentSender.country_code}
@@ -874,7 +966,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowGatewayCard(false)}
         />
       ) : showISO20022Card && activeFXQuote && resolvedResult && activeZKProof && activeNullifier && activeEnvelope ? (
-        /* 15. If Step 8 ISO 20022 Card is active: */
+        /* 17. If Step 8 ISO 20022 Card is active: */
         <Pacs008AssemblyCard
           quote={activeFXQuote}
           recipient={resolvedResult}
@@ -890,7 +982,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowISO20022Card(false)}
         />
       ) : showEnvelopeCard && activeFXQuote && resolvedResult && activeZKProof && activeNullifier ? (
-        /* 16. If Step 7 PII Envelope Card is active: */
+        /* 18. If Step 7 PII Envelope Card is active: */
         <PIIEnvelopeCard
           quote={activeFXQuote}
           recipient={resolvedResult}
@@ -904,7 +996,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowEnvelopeCard(false)}
         />
       ) : showNullifierCard && activeFXQuote && resolvedResult && activeZKProof ? (
-        /* 17. If Step 6 Nullifier Card is active: */
+        /* 19. If Step 6 Nullifier Card is active: */
         <NullifierComputationCard
           quote={activeFXQuote}
           recipient={resolvedResult}
@@ -918,7 +1010,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowNullifierCard(false)}
         />
       ) : showZKProver && activeFXQuote && resolvedResult ? (
-        /* 18. If Step 5 ZK-SNARK Prover is active: */
+        /* 20. If Step 5 ZK-SNARK Prover is active: */
         <ZKProofGenerationCard
           quote={activeFXQuote}
           recipient={resolvedResult}
@@ -931,7 +1023,7 @@ export const SenderPayCard: React.FC<SenderPayCardProps> = ({
           onBack={() => setShowZKProver(false)}
         />
       ) : activeFXQuote && resolvedResult ? (
-        /* 19. If Step 4 FX Quote is locked: */
+        /* 21. If Step 4 FX Quote is locked: */
         <FXQuoteLockCard
           initialQuote={activeFXQuote}
           recipient={resolvedResult}

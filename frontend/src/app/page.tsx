@@ -6,7 +6,7 @@ import { ConsumerReceiveCard } from "@/components/receiver/ConsumerReceiveCard";
 import { ConsumerQRPresenter } from "@/components/receiver/ConsumerQRPresenter";
 import { RecentRequestsList } from "@/components/receiver/RecentRequestsList";
 import { SenderPayCard } from "@/components/sender/SenderPayCard";
-import { AdminHubPlaceholder } from "@/components/admin/AdminHubPlaceholder";
+import { AdminComplianceDashboard } from "@/components/admin/AdminComplianceDashboard";
 import { DynamicPaymentRequestResponse } from "@/types/payment";
 
 export default function Home() {
@@ -60,7 +60,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 2: Send Money / Proxy Resolution & Name Inquiry (Step 2) */}
+        {/* Tab 2: Send Money / Proxy Resolution & Name Inquiry */}
         {activeTab === "send" && (
           <div className="animate-in fade-in duration-200">
             <SenderPayCard />
@@ -70,7 +70,7 @@ export default function Home() {
         {/* Tab 3: Nexus Telemetry & Compliance Hub */}
         {activeTab === "nexus" && (
           <div className="animate-in fade-in duration-200">
-            <AdminHubPlaceholder />
+            <AdminComplianceDashboard />
           </div>
         )}
       </main>

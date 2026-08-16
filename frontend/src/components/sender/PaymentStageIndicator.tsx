@@ -23,6 +23,8 @@ import {
   Scale,
   Boxes,
   Archive,
+  BellRing,
+  Receipt,
 } from "lucide-react";
 
 export type PaymentStage =
@@ -45,7 +47,9 @@ export type PaymentStage =
   | "enclave_decryption"
   | "sanctions_screening"
   | "ledger_commit"
-  | "compliance_archival";
+  | "compliance_archival"
+  | "push_notify"
+  | "sender_receipt";
 
 interface PaymentStageIndicatorProps {
   currentStage: PaymentStage;
@@ -80,6 +84,8 @@ const STAGES: StageItem[] = [
   { id: "sanctions_screening", label: "AML Sanctions", shortLabel: "AML", icon: Scale },
   { id: "ledger_commit", label: "Ledger Commitment", shortLabel: "Ledger", icon: Boxes },
   { id: "compliance_archival", label: "WORM Archival", shortLabel: "Archive", icon: Archive },
+  { id: "push_notify", label: "Recipient Push", shortLabel: "Push", icon: BellRing },
+  { id: "sender_receipt", label: "Digital Receipt", shortLabel: "Receipt", icon: Receipt },
 ];
 
 export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
@@ -113,7 +119,7 @@ export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
                 title={stage.label}
               >
                 <div
-                  className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all ${
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-md sm:rounded-lg flex items-center justify-center transition-all ${
                     isCurrent
                       ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 ring-1 ring-emerald-400/50"
                       : isPassed
@@ -122,13 +128,13 @@ export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
                   }`}
                 >
                   {isPassed ? (
-                    <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[2.5]" />
+                    <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 stroke-[2.5]" />
                   ) : (
-                    <Icon className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[2]" />
+                    <Icon className="w-2 h-2 sm:w-2.5 sm:h-2.5 stroke-[2]" />
                   )}
                 </div>
 
-                <span className="text-[6.5px] sm:text-[7px] tracking-tight font-medium hidden sm:block truncate max-w-[17px]">
+                <span className="text-[5.5px] sm:text-[6px] tracking-tight font-medium hidden sm:block truncate max-w-[14px]">
                   {stage.shortLabel}
                 </span>
               </button>

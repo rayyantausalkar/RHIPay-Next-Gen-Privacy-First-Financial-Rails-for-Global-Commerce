@@ -561,6 +561,140 @@ export interface ComplianceArchivalResponse {
   archived_at: string;
 }
 
+export interface RecipientPushNotificationRequest {
+  uetr: string;
+  recipient_proxy: string;
+  recipient_name?: string;
+  recipient_currency?: string;
+  amount_credited: number;
+  amount_credited_cents: number;
+  origin_currency?: string;
+  origin_amount?: number;
+  sender_masked_name?: string;
+  sender_proxy?: string;
+  host_ips_reference: string;
+  settlement_status?: string;
+  payment_note?: string;
+}
+
+export interface RecipientPushNotificationResponse {
+  notification_id: string;
+  uetr: string;
+  recipient_proxy: string;
+  delivery_channel: string;
+  status: string;
+  active_subscribers_notified: number;
+  credited_amount_formatted: string;
+  settlement_status: string;
+  host_ips_reference: string;
+  push_latency_ms: number;
+  delivered_at: string;
+}
+
+export interface SenderReceiptRequest {
+  uetr: string;
+  message_id: string;
+  sender_proxy?: string;
+  sender_name?: string;
+  sender_currency?: string;
+  amount_debited: number;
+  amount_debited_cents: number;
+  recipient_name?: string;
+  recipient_proxy?: string;
+  recipient_currency?: string;
+  amount_credited: number;
+  fx_rate?: number;
+  zk_proof_id?: string;
+  nullifier_hash?: string;
+  archive_id?: string;
+  ledger_block_height?: number;
+  payment_note?: string;
+}
+
+export interface SenderReceiptResponse {
+  receipt_id: string;
+  uetr: string;
+  message_id: string;
+  status: string;
+  iso_status_code: string;
+  sender_proxy: string;
+  sender_name: string;
+  sender_currency: string;
+  sender_balance_before: number;
+  sender_balance_after: number;
+  amount_debited_formatted: string;
+  recipient_name: string;
+  recipient_proxy: string;
+  recipient_currency: string;
+  amount_credited_formatted: string;
+  effective_fx_rate: number;
+  fee_amount_formatted: string;
+  clearing_scheme: string;
+  receipt_signature_digest: string;
+  total_settlement_duration_ms: number;
+  ledger_block_height: number;
+  issued_at: string;
+}
+
+export interface BalanceSheetAccount {
+  account_id: string;
+  account_name: string;
+  account_type: string;
+  currency: string;
+  balance_cents: number;
+  balance_formatted: string;
+}
+
+export interface BalanceSheetTelemetry {
+  accounts: BalanceSheetAccount[];
+  zero_sum_verified: boolean;
+  ledger_block_height: number;
+  ledger_state_merkle_root: string;
+}
+
+export interface ZKProofTelemetry {
+  merkle_root: string;
+  tree_depth: number;
+  total_registered_leaves: number;
+  nullifier_uniqueness_rate_pct: number;
+  latest_public_signals: string[];
+  proving_engine: string;
+}
+
+export interface ISO20022MessageSummary {
+  message_id: string;
+  uetr: string;
+  message_type: string;
+  instructed_amount: number;
+  instructed_currency: string;
+  settlement_amount: number;
+  settlement_currency: string;
+  xml_preview: string;
+  status_code: string;
+  created_at: string;
+}
+
+export interface StatutoryComplianceStatus {
+  fatf_enclave_attestation_rate_pct: number;
+  sanctions_screening_pass_rate_pct: number;
+  worm_7year_retention_sealed_count: number;
+  active_regulators: string[];
+}
+
+export interface AdminDashboardTelemetryResponse {
+  hub_status: string;
+  active_spokes_count: number;
+  e2e_settlement_p99_latency_ms: number;
+  zkp_verification_p99_latency_ms: number;
+  sanctions_screening_p99_latency_ms: number;
+  total_volume_settled_usd: number;
+  balance_sheet: BalanceSheetTelemetry;
+  live_zkp_telemetry: ZKProofTelemetry;
+  live_iso20022_messages: ISO20022MessageSummary[];
+  statutory_compliance_status: StatutoryComplianceStatus;
+  timestamp: string;
+}
+
 export interface AccountBalance {
   account_id: string;
   account_name: string;

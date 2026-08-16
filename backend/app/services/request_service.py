@@ -344,6 +344,15 @@ class RequestService:
         self._requests[reference_id]["status"] = RequestStatus.COMPLETED
         return self.get_request(reference_id)
 
+    def mark_completed_by_proxy(self, proxy: str) -> Optional[DynamicPaymentRequestResponse]:
+        clean_proxy = proxy.strip().replace(" ", "").lower()
+        for ref_id, rec in self._requests.items():
+            if rec.get("recipient_proxy_value", "").strip().replace(" ", "").lower() == clean_proxy:
+                if rec["status"] in [RequestStatus.ACTIVE, RequestStatus.SCANNED]:
+                    rec["status"] = RequestStatus.COMPLETED
+                    return self.get_request(ref_id)
+        return None
+
     def cancel_request(self, reference_id: str) -> Optional[DynamicPaymentRequestResponse]:
         req = self.get_request(reference_id)
         if not req:

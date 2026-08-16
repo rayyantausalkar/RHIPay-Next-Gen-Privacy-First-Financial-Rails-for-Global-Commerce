@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     gateway,
     routing,
     settlement,
+    telemetry,
 )
 
 api_router = APIRouter()
@@ -23,3 +24,4 @@ api_router.include_router(iso20022.router, prefix="/iso20022", tags=["ISO 20022 
 api_router.include_router(gateway.router, prefix="/gateway", tags=["Central API Gateway & Message Ingestion"])
 api_router.include_router(routing.router, prefix="/routing", tags=["Supplementary Data Routing & Isolation"])
 api_router.include_router(settlement.router, prefix="/settlement", tags=["Two-Leg Atomic Settlement & Double-Entry Ledger"])
+api_router.include_router(telemetry.router, prefix="/telemetry", tags=["Real-Time Telemetry & Asynchronous Push"])

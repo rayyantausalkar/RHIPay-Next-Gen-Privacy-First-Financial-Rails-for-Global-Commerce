@@ -49,6 +49,49 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
     return () => clearInterval(timer);
   }, [secondsRemaining, request.status]);
 
+  // WebSocket live telemetry stream listener
+  useEffect(() => {
+    if (request.status === "COMPLETED" || request.status === "EXPIRED") return;
+
+    let ws: WebSocket | null = null;
+    try {
+      const wsUrl = `ws://localhost:8000/api/v1/telemetry/ws/${encodeURIComponent(request.recipient_proxy_value)}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (
+            payload.event === "PAYMENT_CREDITED_FUNDS_AVAILABLE" ||
+            payload.status === "ACCP_SETTLED_FUNDS_AVAILABLE" ||
+            payload.status === "COMPLETED"
+          ) {
+            setRequest((prev) => ({ ...prev, status: "COMPLETED" }));
+            toast.success("Payment Received & Cleared Instantly!", {
+              description: `Credited ${Number(request.requested_amount).toFixed(request.currency_decimals ?? 2)} ${request.destination_currency} via Host IPS`,
+            });
+            confetti({
+              particleCount: 120,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: ["#10b981", "#34d399", "#059669", "#ffffff"],
+            });
+          }
+        } catch {
+          // Ignore json parse error
+        }
+      };
+    } catch {
+      // WebSocket fallback to polling
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [request.destination_currency, request.recipient_proxy_value, request.requested_amount, request.currency_decimals, request.status]);
+
   // Polling for live status changes
   useEffect(() => {
     if (request.status === "COMPLETED" || request.status === "EXPIRED") return;
@@ -56,7 +99,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
     const poller = setInterval(async () => {
       try {
         const updated = await getPaymentRequest(request.reference_id);
-        if (updated.status !== request.status) {
+        if (updated && updated.status !== request.status) {
           setRequest(updated);
           if (updated.status === "SCANNED") {
             toast.info("Payer scanned your QR code!", {
@@ -77,7 +120,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
       } catch {
         // Silently continue polling
       }
-    }, 2000);
+    }, 1200);
 
     return () => clearInterval(poller);
   }, [request.reference_id, request.status]);
