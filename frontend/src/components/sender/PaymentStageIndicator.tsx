@@ -18,6 +18,11 @@ import {
   Building2,
   ArrowLeftRight,
   Landmark,
+  FileSpreadsheet,
+  Key,
+  Scale,
+  Boxes,
+  Archive,
 } from "lucide-react";
 
 export type PaymentStage =
@@ -35,7 +40,12 @@ export type PaymentStage =
   | "crypto_gate"
   | "spoke_a"
   | "fx_swap"
-  | "spoke_b";
+  | "spoke_b"
+  | "travel_rule"
+  | "enclave_decryption"
+  | "sanctions_screening"
+  | "ledger_commit"
+  | "compliance_archival";
 
 interface PaymentStageIndicatorProps {
   currentStage: PaymentStage;
@@ -65,6 +75,11 @@ const STAGES: StageItem[] = [
   { id: "spoke_a", label: "Spoke A Debit", shortLabel: "Spoke A", icon: Building2 },
   { id: "fx_swap", label: "Atomic FX Swap", shortLabel: "FX Swap", icon: ArrowLeftRight },
   { id: "spoke_b", label: "Spoke B Credit", shortLabel: "Spoke B", icon: Landmark },
+  { id: "travel_rule", label: "FATF Dispatch", shortLabel: "FATF", icon: FileSpreadsheet },
+  { id: "enclave_decryption", label: "Enclave Decrypt", shortLabel: "Enclave", icon: Key },
+  { id: "sanctions_screening", label: "AML Sanctions", shortLabel: "AML", icon: Scale },
+  { id: "ledger_commit", label: "Ledger Commitment", shortLabel: "Ledger", icon: Boxes },
+  { id: "compliance_archival", label: "WORM Archival", shortLabel: "Archive", icon: Archive },
 ];
 
 export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
@@ -98,7 +113,7 @@ export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
                 title={stage.label}
               >
                 <div
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg sm:rounded-xl flex items-center justify-center transition-all ${
+                  className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all ${
                     isCurrent
                       ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 ring-1 ring-emerald-400/50"
                       : isPassed
@@ -113,7 +128,7 @@ export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
                   )}
                 </div>
 
-                <span className="text-[7px] sm:text-[8px] tracking-tight font-medium hidden sm:block truncate max-w-[22px]">
+                <span className="text-[6.5px] sm:text-[7px] tracking-tight font-medium hidden sm:block truncate max-w-[17px]">
                   {stage.shortLabel}
                 </span>
               </button>

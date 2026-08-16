@@ -1,33 +1,33 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
 class LedgerJournalEntry(BaseModel):
-    entry_id: str = Field(..., description="Unique immutable ledger journal line entry ID")
-    account_id: str = Field(..., description="Ledger account code")
-    account_name: str = Field(..., description="Human-readable ledger account title")
-    account_type: str = Field(..., description="SENDER_RETAIL_ACCT | FXP_SPOKE_A_POOL | FXP_SPOKE_B_POOL | RECIPIENT_RETAIL_ACCT")
-    entry_type: str = Field(..., description="DEBIT or CREDIT")
-    amount_cents: int = Field(..., description="Integer amount in minor currency units (cents/paise)")
-    currency: str = Field(..., description="ISO 4217 Currency Code")
-    balance_after_cents: int = Field(..., description="Account balance after applying entry in integer minor units")
+    entry_id: str
+    account_id: str
+    account_name: str
+    account_type: str = Field(..., description="RETAIL_DEBTOR | FXP_POOL_DOMESTIC | FXP_POOL_FOREIGN | RETAIL_CREDITOR")
+    entry_type: str = Field(..., description="DEBIT | CREDIT")
+    amount_cents: int = Field(..., description="Integer unit amount in paise / cents (no float rounding errors)")
+    currency: str = Field(..., description="ISO 4217 Currency Code (INR, SGD, etc.)")
+    balance_after_cents: int = Field(..., description="Post-posting account balance in integer units")
     timestamp: datetime
 
 
 class SpokeAExecutionRequest(BaseModel):
     uetr: str = Field(..., description="ISO 20022 Unique End-to-End Transaction Reference")
-    clearance_token: str = Field(..., description="Signed Cryptographic Clearance Token from Step 14")
+    clearance_token: str = Field(..., description="Cryptographic Gating Clearance Token from Step 14")
     sender_proxy: str = Field(..., description="Sender proxy alias / account")
-    sender_spoke: str = Field(..., description="Sender domestic spoke (e.g. IN)")
-    sender_currency: str = Field(..., description="Sender domestic currency (e.g. INR)")
-    sender_bic: str = Field(..., description="Sender commercial bank routing BIC")
-    origin_debit_amount: float = Field(..., description="Domestic debit amount in decimal")
-    fx_rate: float = Field(..., description="Guaranteed FX rate applied")
-    destination_amount: float = Field(..., description="Destination credit amount in foreign currency")
-    recipient_currency: str = Field(..., description="Recipient currency (e.g. SGD)")
-    quote_id: str = Field(..., description="Locked FX Quote ID")
-    fx_provider_id: Optional[str] = Field(default="DBS_GLOBAL_LIQUIDITY_DESK", description="Designated FX liquidity pool provider")
+    sender_spoke: str = Field(default="IN", description="Originating home country spoke (e.g. IN)")
+    sender_currency: str = Field(default="INR", description="Sender domestic currency (e.g. INR)")
+    sender_bic: str = Field(default="HDFCINBBXXX", description="Sender commercial bank BIC")
+    origin_debit_amount: float = Field(..., description="Amount debited in origin currency (e.g. 2835.00)")
+    fx_rate: float = Field(..., description="Guaranteed FX rate locked in Step 4")
+    destination_amount: float = Field(..., description="Target disbursement amount (e.g. 45.00)")
+    recipient_currency: str = Field(default="SGD", description="Target disbursement currency (e.g. SGD)")
+    quote_id: str = Field(..., description="Locked FX Quote reference")
+    fx_provider_id: Optional[str] = Field(default="DBS_GLOBAL_LIQUIDITY_DESK", description="Bilateral FX Liquidity Provider")
 
 
 class SpokeAExecutionResponse(BaseModel):
@@ -49,14 +49,14 @@ class SpokeAExecutionResponse(BaseModel):
 
 class AtomicFxSwapRequest(BaseModel):
     uetr: str = Field(..., description="ISO 20022 Unique End-to-End Transaction Reference")
-    settlement_id: str = Field(..., description="Spoke A settlement execution reference")
+    settlement_id: str = Field(..., description="Spoke A settlement execution ID from Step 15")
     quote_id: str = Field(..., description="Locked FX Quote ID")
-    origin_currency: str = Field(default="INR", description="Domestic currency received in Spoke A")
-    origin_amount_cents: int = Field(..., description="Integer minor units received (e.g. paise)")
-    destination_currency: str = Field(default="SGD", description="Foreign currency disbursed in Spoke B")
-    destination_amount_cents: int = Field(..., description="Integer minor units earmarked (e.g. cents)")
-    fx_rate: float = Field(..., description="Guaranteed conversion rate")
-    fx_provider_id: Optional[str] = Field(default="DBS_GLOBAL_LIQUIDITY_DESK", description="FX liquidity desk")
+    origin_currency: str = Field(default="INR", description="Origin currency (e.g. INR)")
+    origin_amount_cents: int = Field(..., description="Integer paise deposited into domestic pool (e.g. 283500)")
+    destination_currency: str = Field(default="SGD", description="Destination currency (e.g. SGD)")
+    destination_amount_cents: int = Field(..., description="Integer cents withdrawn from foreign pool (e.g. 4500)")
+    fx_rate: float = Field(..., description="Guaranteed bilateral exchange rate")
+    fx_provider_id: Optional[str] = Field(default="DBS_GLOBAL_LIQUIDITY_DESK", description="Bilateral FX liquidity desk ID")
     herstatt_risk_mitigation: Optional[str] = Field(default="PVP_ATOMIC_COMMIT", description="Payment-versus-Payment atomic commit mechanism")
 
 
@@ -103,6 +103,39 @@ class SpokeBExecutionResponse(BaseModel):
     journal_entries: List[LedgerJournalEntry]
     settlement_latency_ms: float
     executed_at: datetime
+
+
+class LedgerCommitmentRequest(BaseModel):
+    uetr: str = Field(..., description="ISO 20022 Unique End-to-End Transaction Reference")
+    quote_id: str = Field(..., description="Locked FX Quote reference")
+    sender_proxy: str = Field(default="+919876543210", description="Payer proxy alias")
+    sender_spoke: str = Field(default="IN", description="Originating home country spoke")
+    sender_currency: str = Field(default="INR", description="Payer debit currency")
+    recipient_proxy: str = Field(default="+6591234567", description="Payee proxy alias")
+    recipient_spoke: str = Field(default="SG", description="Host destination country spoke")
+    recipient_currency: str = Field(default="SGD", description="Payee credit currency")
+    origin_debit_amount: float = Field(default=2835.00, description="Gross debited amount in origin currency")
+    destination_credit_amount: float = Field(default=45.00, description="Gross credited amount in destination currency")
+    fx_rate: float = Field(default=63.00, description="Locked exchange rate")
+    fx_provider_id: Optional[str] = Field(default="FXP-DBS-GLOBAL-01", description="FX provider desk")
+    spoke_a_settlement_id: Optional[str] = Field(default=None, description="Spoke A settlement execution reference")
+    spoke_b_disbursement_id: Optional[str] = Field(default=None, description="Spoke B disbursement reference")
+    screening_id: Optional[str] = Field(default=None, description="AML / Sanctions screening reference")
+
+
+class LedgerCommitmentResponse(BaseModel):
+    commitment_id: str
+    uetr: str
+    ledger_block_height: int
+    status: str = "DOUBLE_ENTRY_COMMITTED"
+    zero_sum_invariant_verified: bool = True
+    journal_entries_count: int = 4
+    currency_balances_delta: Dict[str, float] = Field(default_factory=lambda: {"INR": 0.0, "SGD": 0.0})
+    journal_entries: List[LedgerJournalEntry]
+    ledger_state_merkle_root: str
+    commitment_hash: str
+    commitment_latency_ms: float
+    committed_at: datetime
 
 
 class AccountBalance(BaseModel):

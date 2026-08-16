@@ -494,6 +494,73 @@ export interface SpokeBExecutionResponse {
   executed_at: string;
 }
 
+export interface LedgerCommitmentRequest {
+  uetr: string;
+  quote_id: string;
+  sender_proxy?: string;
+  sender_spoke?: string;
+  sender_currency?: string;
+  recipient_proxy?: string;
+  recipient_spoke?: string;
+  recipient_currency?: string;
+  origin_debit_amount: number;
+  destination_credit_amount: number;
+  fx_rate: number;
+  fx_provider_id?: string;
+  spoke_a_settlement_id?: string;
+  spoke_b_disbursement_id?: string;
+  screening_id?: string;
+}
+
+export interface LedgerCommitmentResponse {
+  commitment_id: string;
+  uetr: string;
+  ledger_block_height: number;
+  status: string;
+  zero_sum_invariant_verified: boolean;
+  journal_entries_count: number;
+  currency_balances_delta: Record<string, number>;
+  journal_entries: LedgerJournalEntry[];
+  ledger_state_merkle_root: string;
+  commitment_hash: string;
+  commitment_latency_ms: number;
+  committed_at: string;
+}
+
+export interface ComplianceArchivalRequest {
+  uetr: string;
+  message_id: string;
+  pacs008_xml: string;
+  zk_public_signals: string[];
+  zk_proof_id?: string;
+  merkle_root: string;
+  nullifier_hash: string;
+  travel_rule_receipt_id: string;
+  regulatory_ack_token: string;
+  enclave_attestation_id: string;
+  sanctions_audit_log_id: string;
+  sanctions_verdict?: string;
+  sanctions_seal_hash: string;
+  ledger_commitment_id: string;
+  ledger_block_height?: number;
+  retention_period_years?: number;
+  storage_tier?: string;
+}
+
+export interface ComplianceArchivalResponse {
+  archive_id: string;
+  uetr: string;
+  message_id: string;
+  status: string;
+  archive_seal_hash: string;
+  worm_retention_until: string;
+  non_repudiation_signature: string;
+  audit_bundle_size_bytes: number;
+  persisted_components: Record<string, boolean>;
+  archival_latency_ms: number;
+  archived_at: string;
+}
+
 export interface AccountBalance {
   account_id: string;
   account_name: string;
@@ -561,6 +628,118 @@ export interface PIIEnvelopeDecryptResponse {
   fatf_travel_rule_compliant: boolean;
   decrypted_at: string;
   error_details?: string;
+}
+
+export interface TravelRuleDispatchRequest {
+  uetr: string;
+  envelope_id: string;
+  recipient_regulator_id: string;
+  destination_spoke: string;
+  origin_spoke?: string;
+  encrypted_aes_key: string;
+  encrypted_pii_ciphertext: string;
+  iv: string;
+  auth_tag: string;
+  settlement_id?: string;
+}
+
+export interface TravelRuleDispatchResponse {
+  receipt_id: string;
+  uetr: string;
+  status: string;
+  destination_spoke: string;
+  recipient_regulator_node: string;
+  compliance_handshake_protocol: string;
+  regulatory_acknowledgement_token: string;
+  fatf_recommendation_16_compliant: boolean;
+  sanction_screening_status: string;
+  decrypted_audit_available: boolean;
+  dispatch_latency_ms: number;
+  dispatched_at: string;
+}
+
+export interface SanctionScreeningResult {
+  status: string;
+  pep_detected: boolean;
+  risk_score: number;
+  aml_tier: string;
+}
+
+export interface EnclaveDecryptionRequest {
+  uetr: string;
+  envelope_id: string;
+  destination_spoke?: string;
+  encrypted_aes_key: string;
+  encrypted_pii_ciphertext: string;
+  iv: string;
+  auth_tag: string;
+  auditor_node_id?: string;
+  enclave_isolation_mode?: string;
+}
+
+export interface EnclaveDecryptionResponse {
+  attestation_id: string;
+  uetr: string;
+  envelope_id: string;
+  status: string;
+  is_valid: boolean;
+  originator_name: string;
+  originator_proxy: string;
+  originator_address: string;
+  originator_national_id: string;
+  originator_bic: string;
+  beneficiary_name: string;
+  beneficiary_proxy: string;
+  beneficiary_bic: string;
+  fatf_travel_rule_compliant: boolean;
+  sanction_screening: SanctionScreeningResult;
+  auditor_node_id: string;
+  enclave_security_tier: string;
+  decryption_latency_ms: number;
+  decrypted_at: string;
+}
+
+export interface WatchlistHit {
+  list_name: string;
+  matched_entity?: string | null;
+  similarity_score: number;
+  status: string;
+}
+
+export interface PepScreeningResult {
+  is_pep: boolean;
+  confidence: number;
+  details: string;
+}
+
+export interface SanctionsScreeningRequest {
+  uetr: string;
+  originator_name: string;
+  originator_proxy: string;
+  originator_national_id?: string;
+  originator_country?: string;
+  beneficiary_name: string;
+  beneficiary_proxy: string;
+  beneficiary_country?: string;
+  transaction_amount?: number;
+  currency?: string;
+  screening_profile?: string;
+}
+
+export interface SanctionsScreeningResponse {
+  screening_id: string;
+  uetr: string;
+  overall_verdict: string;
+  is_cleared: boolean;
+  risk_score: number;
+  risk_tier: string;
+  pep_screening: PepScreeningResult;
+  watchlist_breakdown: WatchlistHit[];
+  audit_log_id: string;
+  audit_seal_hash: string;
+  compliance_officer_bypass_required: boolean;
+  screening_latency_ms: number;
+  screened_at: string;
 }
 
 export interface Pacs008AssembleRequest {

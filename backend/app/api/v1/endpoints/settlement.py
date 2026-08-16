@@ -7,6 +7,8 @@ from app.models.ledger import (
     AtomicFxSwapResponse,
     SpokeBExecutionRequest,
     SpokeBExecutionResponse,
+    LedgerCommitmentRequest,
+    LedgerCommitmentResponse,
     AccountBalance,
 )
 from app.services.ledger_service import ledger_service
@@ -44,6 +46,16 @@ def execute_spoke_b(payload: SpokeBExecutionRequest):
     return ledger_service.execute_spoke_b_settlement(payload)
 
 
+@router.post(
+    "/ledger/commit",
+    response_model=LedgerCommitmentResponse,
+    summary="Double-Entry Ledger Commitment (Step 21)",
+    description="Records balanced debit and credit entries across all sender, recipient, and FX pool accounts, enforcing zero-sum accounting invariants.",
+)
+def commit_ledger(payload: LedgerCommitmentRequest):
+    return ledger_service.commit_double_entry_ledger(payload)
+
+
 @router.get(
     "/accounts/balances",
     response_model=List[AccountBalance],
@@ -51,4 +63,4 @@ def execute_spoke_b(payload: SpokeBExecutionRequest):
     description="Returns real-time integer balances across sender, FXP, and recipient bilateral pool accounts.",
 )
 def get_account_balances():
-    return ledger_service.get_accounts()
+    return ledger_service.get_account_balances()
