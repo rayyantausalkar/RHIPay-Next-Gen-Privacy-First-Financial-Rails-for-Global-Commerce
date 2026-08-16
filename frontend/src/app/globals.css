@@ -4,6 +4,10 @@
   --background: #000000;
   --foreground: #f4f4f5;
   --color-emerald-accent: #10b981;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.12);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @theme inline {
@@ -19,14 +23,91 @@ body {
   color: #f4f4f5;
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: clip;
+  min-width: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom focus states */
+/* Eradicate browser default number input spinner / increment-decrement arrows */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+/* Modern sleek custom scrollbars across all scroll containers */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
+}
+
+/* Utility to completely hide scrollbars where needed */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom modern select dropdown styling */
+select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.6rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.25rem !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Accessible and tactile focus states */
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid #10b981;
   outline-offset: 2px;
+}
+
+/* Emil Kowalski press physics */
+@media (hover: hover) and (pointer: fine) {
+  .btn-pressable {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, border-color 160ms ease;
+  }
+  .btn-pressable:active {
+    transform: scale(0.97);
+  }
+}
+
+/* Entry animation standard */
+@keyframes hallmarkEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-hallmark-enter {
+  animation: hallmarkEnter 220ms var(--ease-out) forwards;
 }

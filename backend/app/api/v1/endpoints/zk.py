@@ -7,6 +7,12 @@ from app.models.zk_proof import (
     ZKProofGenerateResponse,
     ZKProofVerifyRequest,
     ZKProofVerifyResponse,
+    MerkleRootValidateRequest,
+    MerkleRootValidateResponse,
+    MerkleTreeUpdateRequest,
+    MerkleTreeUpdateResponse,
+    Groth16VerifyRequest,
+    Groth16VerifyResponse,
 )
 from app.models.nullifier import (
     NullifierComputeRequest,
@@ -15,9 +21,17 @@ from app.models.nullifier import (
     NullifierVerifyResponse,
     NullifierSpendRequest,
     NullifierSpendResponse,
+    NullifierRegistryCheckRequest,
+    NullifierRegistryCheckResponse,
+)
+from app.models.gating import (
+    CryptographicGateRequest,
+    CryptographicGateResponse,
 )
 from app.services.zk_service import zk_service
 from app.services.nullifier_service import nullifier_service
+from app.services.groth16_verifier import groth16_verifier
+from app.services.gating_service import gating_service
 
 router = APIRouter()
 
@@ -30,6 +44,46 @@ router = APIRouter()
 )
 def get_merkle_root():
     return zk_service.get_root_info()
+
+
+@router.post(
+    "/merkle-root/validate",
+    response_model=MerkleRootValidateResponse,
+    summary="Poseidon Merkle Root Validation (Step 11)",
+    description="Validates that the root hash used in the ZK-proof matches the current active state or valid historical cache of the central identity registry.",
+)
+def validate_merkle_root(payload: MerkleRootValidateRequest):
+    return zk_service.validate_merkle_root(payload)
+
+
+@router.post(
+    "/merkle-root/push-update",
+    response_model=MerkleTreeUpdateResponse,
+    summary="Simulate Tree Mutation / Participant Enrollment",
+    description="Enrolls a new participant leaf, preserving previous root in historical ring-buffer for latency tolerance testing.",
+)
+def push_merkle_tree_update(payload: MerkleTreeUpdateRequest):
+    return zk_service.push_tree_update(payload)
+
+
+@router.post(
+    "/groth16/verify-circuit",
+    response_model=Groth16VerifyResponse,
+    summary="SnarkJS / Groth16 Mathematical Circuit Verification (Step 12)",
+    description="Runs bilinear pairing checks on the elliptic curve points of the Groth16 proof against the pre-compiled circuit verification key.",
+)
+def verify_groth16_circuit(payload: Groth16VerifyRequest):
+    return groth16_verifier.verify_circuit(payload)
+
+
+@router.post(
+    "/crypto-gate/evaluate",
+    response_model=CryptographicGateResponse,
+    summary="Cryptographic Gating Approval (Step 14)",
+    description="Evaluates whether proof validity, root consistency, and nullifier uniqueness evaluate to true before issuing a signed clearance token.",
+)
+def evaluate_crypto_gate(payload: CryptographicGateRequest):
+    return gating_service.evaluate_gate(payload)
 
 
 @router.post(
@@ -69,7 +123,7 @@ def verify_zk_proof(payload: ZKProofVerifyRequest):
     return zk_service.verify_proof(payload)
 
 
-# --- Step 6 Nullifier Endpoints ---
+# --- Step 6 & 13 Nullifier Endpoints ---
 
 @router.post(
     "/nullifier/compute",
@@ -79,6 +133,16 @@ def verify_zk_proof(payload: ZKProofVerifyRequest):
 )
 def compute_nullifier(payload: NullifierComputeRequest):
     return nullifier_service.compute_nullifier(payload)
+
+
+@router.post(
+    "/nullifier/registry-check",
+    response_model=NullifierRegistryCheckResponse,
+    summary="Anti-Replay Nullifier Registry Check (Step 13)",
+    description="Queries the persistent storage layer to confirm the nullifier has never been committed and acquires an in-flight reservation lock.",
+)
+def registry_check_nullifier(payload: NullifierRegistryCheckRequest):
+    return nullifier_service.registry_check_and_reserve(payload)
 
 
 @router.post(

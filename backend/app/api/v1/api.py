@@ -1,5 +1,15 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import requests, proxies, network, fx, zk, compliance, iso20022
+from app.api.v1.endpoints import (
+    requests,
+    proxies,
+    network,
+    fx,
+    zk,
+    compliance,
+    iso20022,
+    gateway,
+    routing,
+)
 
 api_router = APIRouter()
 api_router.include_router(network.router, prefix="/network", tags=["Nexus Network & Country Spokes"])
@@ -9,3 +19,5 @@ api_router.include_router(fx.router, prefix="/fx", tags=["FX Liquidity & Zero-Sl
 api_router.include_router(zk.router, prefix="/zk", tags=["Zero-Knowledge Proofs & Merkle Tree"])
 api_router.include_router(compliance.router, prefix="/compliance", tags=["FATF Travel Rule & Encrypted Envelopes"])
 api_router.include_router(iso20022.router, prefix="/iso20022", tags=["ISO 20022 Financial Messaging Standards"])
+api_router.include_router(gateway.router, prefix="/gateway", tags=["Central API Gateway & Message Ingestion"])
+api_router.include_router(routing.router, prefix="/routing", tags=["Supplementary Data Routing & Isolation"])

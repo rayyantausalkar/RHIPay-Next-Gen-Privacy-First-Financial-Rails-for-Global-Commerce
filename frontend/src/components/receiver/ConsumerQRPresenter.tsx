@@ -135,13 +135,13 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden text-center">
+    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden text-center">
       {/* Background ambient glow */}
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-green-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Controls: Expiry & Reset */}
-      <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-white/[0.08]">
         <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
           <Clock className="w-3.5 h-3.5 text-emerald-400" />
           <span>Expires in {formatTime(secondsRemaining)}</span>
@@ -149,7 +149,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
 
         <button
           onClick={onReset}
-          className="flex items-center gap-1 px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white text-xs font-medium border border-white/[0.08] transition-colors"
+          className="flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white text-xs font-medium border border-white/[0.08] transition-colors active:scale-95"
         >
           <RotateCcw className="w-3 h-3 text-emerald-400" />
           <span>New</span>
@@ -157,8 +157,8 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
       </div>
 
       {/* Recipient Avatar & Name */}
-      <div className="mt-4 flex flex-col items-center">
-        <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center font-bold text-xl text-black shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-400/30 mb-3">
+      <div className="mt-3 sm:mt-4 flex flex-col items-center">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-emerald-500 flex items-center justify-center font-bold text-lg sm:text-xl text-black shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-400/30 mb-2 sm:mb-3">
           {request.recipient_name
             .split(" ")
             .map((n) => n[0])
@@ -167,7 +167,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
             .toUpperCase()}
         </div>
 
-        <h3 className="text-base font-bold text-white tracking-tight">
+        <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
           {request.recipient_name}
         </h3>
         <p className="text-xs text-zinc-400 font-mono mt-0.5">
@@ -175,30 +175,30 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
         </p>
 
         {/* Requested Amount Hero */}
-        <div className="mt-4 mb-2 flex items-baseline justify-center gap-1.5">
-          <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
+        <div className="mt-3 sm:mt-4 mb-1 sm:mb-2 flex items-baseline justify-center gap-1.5">
+          <span className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
             {Number(request.requested_amount).toFixed(request.currency_decimals ?? 2)}
           </span>
-          <span className="text-lg font-bold text-emerald-400 font-mono">
+          <span className="text-base sm:text-lg font-bold text-emerald-400 font-mono">
             {request.destination_currency}
           </span>
         </div>
 
         {request.note && (
-          <div className="inline-block px-3 py-1 rounded-full bg-zinc-950 border border-white/[0.08] text-xs text-zinc-300 mb-2">
+          <div className="inline-block px-3 py-1 rounded-full bg-zinc-950 border border-white/[0.08] text-xs text-zinc-300 mb-2 truncate max-w-full">
             &ldquo;{request.note}&rdquo;
           </div>
         )}
       </div>
 
       {/* High-Contrast QR Card Container */}
-      <div className="my-4 relative flex justify-center">
-        <div className="p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-950/40 border-4 border-zinc-800/80 relative">
+      <div className="my-3 sm:my-4 relative flex justify-center">
+        <div className="p-3 sm:p-4 bg-white rounded-3xl shadow-2xl shadow-emerald-950/40 border-4 border-zinc-800/80 relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={request.qr_code_base64}
             alt="RHIPay Dynamic Payment QR"
-            className="w-56 h-56 object-contain rounded-xl"
+            className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl"
           />
 
           {request.status === "EXPIRED" && (
@@ -217,9 +217,9 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
       </div>
 
       {/* Live Radar Pulse Indicator in Emerald */}
-      <div className="flex items-center justify-center gap-2 text-xs font-medium mb-5">
+      <div className="flex items-center justify-center gap-2 text-xs font-medium mb-4 sm:mb-5">
         {request.status === "ACTIVE" && (
-          <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 px-3.5 py-1.5 rounded-full border border-emerald-500/25">
+          <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-emerald-500/25">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
@@ -229,14 +229,14 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
         )}
 
         {request.status === "SCANNED" && (
-          <div className="flex items-center gap-2 text-amber-400 bg-amber-500/10 px-3.5 py-1.5 rounded-full border border-amber-500/25">
+          <div className="flex items-center gap-2 text-amber-400 bg-amber-500/10 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-amber-500/25">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             <span>Payer Scanned • Verifying ZKP</span>
           </div>
         )}
 
         {request.status === "COMPLETED" && (
-          <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/15 px-3.5 py-1.5 rounded-full border border-emerald-500/30">
+          <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/15 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-emerald-500/30">
             <CheckCircle2 className="w-4 h-4" />
             <span>Settled Instantly</span>
           </div>
@@ -244,10 +244,10 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
       </div>
 
       {/* Action Buttons: Copy Link & Save QR */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-2.5 sm:mb-3">
         <button
           onClick={copyPaymentLink}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.08] text-xs font-semibold transition-all active:scale-95"
+          className="flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.08] text-xs font-semibold transition-all active:scale-95"
         >
           {copiedLink ? (
             <>
@@ -264,7 +264,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
 
         <button
           onClick={downloadQR}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+          className="flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
         >
           <Download className="w-4 h-4" />
           <span>Save QR</span>
@@ -276,7 +276,7 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
         <button
           onClick={handleSimulatePayment}
           disabled={isSimulating}
-          className="w-full py-2.5 px-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.06] hover:border-emerald-500/30 text-[11px] text-zinc-400 hover:text-emerald-300 flex items-center justify-center gap-1.5 transition-colors group"
+          className="w-full py-2.5 px-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.06] hover:border-emerald-500/30 text-[11px] text-zinc-400 hover:text-emerald-300 flex items-center justify-center gap-1.5 transition-colors group active:scale-98"
         >
           <Zap className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
           <span>Simulate Payer Scan & Instant Settlement</span>

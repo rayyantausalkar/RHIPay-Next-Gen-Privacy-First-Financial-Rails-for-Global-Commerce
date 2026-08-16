@@ -250,6 +250,56 @@ export interface MerkleRootResponse {
   last_updated: string;
 }
 
+export interface MerkleRootValidateRequest {
+  merkle_root: string;
+  sender_spoke?: string;
+  kyc_tier_required?: number;
+}
+
+export interface MerkleRootValidateResponse {
+  is_valid: boolean;
+  is_current_root: boolean;
+  is_historical_cached: boolean;
+  status: string;
+  merkle_root: string;
+  tree_depth: number;
+  total_participants: number;
+  root_age_seconds: number;
+  validation_time_ms: number;
+  error_details?: string;
+}
+
+export interface MerkleTreeUpdateRequest {
+  new_leaf_proxy: string;
+  spoke?: string;
+}
+
+export interface MerkleTreeUpdateResponse {
+  previous_merkle_root: string;
+  new_merkle_root: string;
+  total_participants: number;
+  updated_at: string;
+}
+
+export interface Groth16VerifyRequest {
+  proof: Record<string, unknown>;
+  public_signals: string[];
+  circuit_name?: string;
+}
+
+export interface Groth16VerifyResponse {
+  is_valid: boolean;
+  pairing_check_passed: boolean;
+  public_signals_verified: boolean;
+  circuit_name: string;
+  curve: string;
+  protocol: string;
+  verification_time_ms: number;
+  pairing_equation_evaluated: string;
+  constraints_checked_count: number;
+  error_details?: string;
+}
+
 export interface NullifierComputeRequest {
   identity_proxy: string;
   sender_spoke: string;
@@ -289,6 +339,57 @@ export interface NullifierSpendResponse {
   status: string;
   spent_at: string;
   quote_id: string;
+}
+
+export interface NullifierRegistryCheckRequest {
+  nullifier_hash: string;
+  quote_id: string;
+  uetr?: string;
+}
+
+export interface NullifierRegistryCheckResponse {
+  is_fresh: boolean;
+  is_spent: boolean;
+  is_reserved: boolean;
+  status: string;
+  nullifier_hash: string;
+  quote_id: string;
+  check_latency_ms: number;
+  spent_at?: string;
+  associated_quote_id?: string;
+  storage_tier: string;
+  error_details?: string;
+}
+
+export interface CryptographicGateRequest {
+  uetr: string;
+  message_id: string;
+  quote_id: string;
+  proof_validity: boolean;
+  root_consistency: boolean;
+  nullifier_uniqueness: boolean;
+  kyc_tier_satisfied?: boolean;
+  envelope_integrity?: boolean;
+  merkle_root: string;
+  nullifier_hash: string;
+}
+
+export interface CryptographicGateResponse {
+  gate_approved: boolean;
+  clearance_status: string;
+  clearance_token?: string;
+  clearance_token_signature?: string;
+  evaluation_timestamp: string;
+  gate_checks: {
+    proof_validity: boolean;
+    root_consistency: boolean;
+    nullifier_uniqueness: boolean;
+    kyc_tier_satisfied: boolean;
+    envelope_integrity: boolean;
+  };
+  evaluation_latency_ms: number;
+  ledger_execution_unlocked: boolean;
+  rejection_reasons: string[];
 }
 
 export interface RegulatorPublicKeyResponse {
@@ -397,4 +498,120 @@ export interface Pacs008ValidateResponse {
   schema_valid: boolean;
   message_type: string;
   details?: string;
+}
+
+export interface GatewayFinancialPayload {
+  message_id: string;
+  uetr: string;
+  end_to_end_id: string;
+  instructed_amount: number;
+  instructed_currency: string;
+  settlement_amount: number;
+  settlement_currency: string;
+  exchange_rate: number;
+  debtor_masked_name: string;
+  creditor_masked_name: string;
+  purpose_code: string;
+}
+
+export interface GatewayRoutingPayload {
+  origin_spoke: string;
+  origin_bic: string;
+  destination_spoke: string;
+  destination_bic: string;
+  clearing_channel: string;
+  settlement_method: string;
+}
+
+export interface GatewayCryptoPayload {
+  nullifier_hash: string;
+  merkle_root: string;
+  proof_protocol: string;
+  proof_curve: string;
+  encrypted_envelope_id: string;
+  recipient_regulator_id: string;
+}
+
+export interface GatewayPipelineIsolation {
+  financial_queue: string;
+  crypto_queue: string;
+  concurrency_isolation_tier: string;
+}
+
+export interface GatewayIngestRequest {
+  pacs008_message: Pacs008MessageResponse | Record<string, unknown>;
+  transmission_channel?: string;
+  client_timestamp?: string;
+}
+
+export interface GatewayIngestResponse {
+  ingestion_id: string;
+  idempotency_key: string;
+  status: string;
+  received_at: string;
+  financial_payload: GatewayFinancialPayload;
+  routing_payload: GatewayRoutingPayload;
+  crypto_payload: GatewayCryptoPayload;
+  pipeline_isolation: GatewayPipelineIsolation;
+  is_idempotent_replay: boolean;
+  ingestion_latency_ms: number;
+}
+
+export interface SupplementaryDataRouteRequest {
+  ingestion_id: string;
+  uetr: string;
+  pacs008_message: Pacs008MessageResponse | Record<string, unknown>;
+}
+
+export interface SupplementaryDataRouteResponse {
+  dispatch_id: string;
+  ingestion_id: string;
+  uetr: string;
+  status: string;
+  dispatched_at: string;
+  core_ledger_unblocked: boolean;
+  isolation_latency_ms: number;
+  pipelines: {
+    zk_snark_queue: {
+      queue_name: string;
+      status: string;
+      target_engine: string;
+      allocated_worker_id: string;
+      estimated_execution_time_ms: number;
+      protocol: string;
+      curve: string;
+      merkle_root: string;
+      payload_digest: string;
+    };
+    nullifier_registry_queue: {
+      queue_name: string;
+      status: string;
+      target_engine: string;
+      allocated_worker_id: string;
+      estimated_execution_time_ms: number;
+      nullifier_hash: string;
+      payload_digest: string;
+    };
+    regulatory_compliance_queue: {
+      queue_name: string;
+      status: string;
+      target_engine: string;
+      allocated_worker_id: string;
+      estimated_execution_time_ms: number;
+      destination_spoke: string;
+      recipient_regulator_id: string;
+      envelope_id: string;
+      payload_digest: string;
+    };
+    core_settlement_highway: {
+      queue_name: string;
+      status: string;
+      target_engine: string;
+      allocated_worker_id: string;
+      estimated_execution_time_ms: number;
+      unblocked: boolean;
+      instructed_amount: number;
+      settlement_amount: number;
+    };
+  };
 }

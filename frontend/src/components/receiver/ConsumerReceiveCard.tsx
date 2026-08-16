@@ -118,30 +118,30 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
   const currentSpokeConfig = spokes.find((s) => s.country_code === selectedCountry);
 
   return (
-    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
+    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
       {/* Background ambient lighting */}
       <div className="absolute -top-32 -left-32 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-green-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* 1. Logged-in User Profile Top Card */}
-      <div className="relative mb-6">
-        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.08] hover:border-emerald-500/30 transition-all">
-          <div className="flex items-center gap-3">
+      <div className="relative mb-5 sm:mb-6">
+        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.08] hover:border-emerald-500/30 transition-all">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {/* Avatar Initials */}
-            <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center font-bold text-sm text-black shadow-md shadow-emerald-500/20 ring-1 ring-emerald-400/40">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-500 flex items-center justify-center font-bold text-xs sm:text-sm text-black shadow-md shadow-emerald-500/20 ring-1 ring-emerald-400/40 flex-shrink-0">
               {currentUser.avatar_initials}
             </div>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white tracking-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
                   {currentUser.name}
                 </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                  <UserCheck className="w-3 h-3" /> Verified
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 flex-shrink-0">
+                  <UserCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Verified
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 font-mono mt-0.5">
+              <p className="text-[11px] sm:text-xs text-zinc-400 font-mono mt-0.5 truncate">
                 {currentUser.proxy_value} • {currentUser.ips_network}
               </p>
             </div>
@@ -151,7 +151,7 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
           <button
             type="button"
             onClick={() => setShowProfileSwitcher(!showProfileSwitcher)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-zinc-300 border border-white/[0.08] transition-colors"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs text-zinc-300 border border-white/[0.08] transition-colors active:scale-95 flex-shrink-0"
             title="Switch demo profile"
           >
             <RefreshCw className="w-3 h-3 text-emerald-400" />
@@ -170,29 +170,29 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
                 key={p.id}
                 type="button"
                 onClick={() => handleSelectProfile(p)}
-                className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors ${
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors active:scale-[0.98] ${
                   currentUser.id === p.id
                     ? "bg-emerald-500/15 text-white font-semibold border border-emerald-500/30"
                     : "hover:bg-white/[0.04] text-zinc-300 border border-transparent"
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">{p.flag_emoji}</span>
-                  <div>
-                    <div className="text-xs font-semibold">{p.name}</div>
-                    <div className="text-[10px] text-zinc-400 font-mono">{p.proxy_value}</div>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-base flex-shrink-0">{p.flag_emoji}</span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold truncate">{p.name}</div>
+                    <div className="text-[10px] text-zinc-400 font-mono truncate">{p.proxy_value}</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono font-bold text-emerald-400">{p.currency}</span>
+                <span className="text-xs font-mono font-bold text-emerald-400 flex-shrink-0">{p.currency}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
         {/* 2. Compact Spoke & Currency Pill Selector */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-zinc-400">
             Receiving into
           </span>
@@ -200,7 +200,7 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 py-1.5 px-3.5 rounded-full bg-zinc-950 hover:bg-zinc-900 border border-white/[0.08] hover:border-emerald-500/40 transition-all text-xs font-medium text-white shadow-inner group"
+            className="flex items-center gap-1.5 sm:gap-2 py-1.5 px-3 sm:px-3.5 rounded-full bg-zinc-950 hover:bg-zinc-900 border border-white/[0.08] hover:border-emerald-500/40 transition-all text-xs font-medium text-white shadow-inner group active:scale-95 flex-shrink-0"
           >
             <span className="text-base">
               {currentSpokeConfig?.flag_emoji || "🌐"}
@@ -215,10 +215,10 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
           </button>
         </div>
 
-        {/* 3. Hero Center-Aligned Amount Input */}
-        <div className="py-3 text-center">
-          <div className="inline-flex items-baseline justify-center gap-2">
-            <span className="text-3xl sm:text-4xl font-extrabold text-emerald-400 font-mono tracking-tight select-none">
+        {/* 3. Hero Center-Aligned Amount Input (Clean, No Spinner Arrows) */}
+        <div className="py-2 sm:py-3 text-center">
+          <div className="inline-flex items-baseline justify-center gap-1.5 sm:gap-2 max-w-full">
+            <span className="text-2xl sm:text-4xl font-extrabold text-emerald-400 font-mono tracking-tight select-none">
               {currentUser.currency_symbol || selectedCurrency}
             </span>
             <input
@@ -229,23 +229,23 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               placeholder="0.00"
-              className="w-48 sm:w-56 text-center text-4xl sm:text-5xl font-extrabold text-white bg-transparent border-b-2 border-transparent hover:border-white/10 focus:border-emerald-400 focus:outline-none transition-all font-mono tracking-tight placeholder-zinc-700"
+              className="w-36 sm:w-48 text-center text-3xl sm:text-5xl font-extrabold text-white bg-transparent border-b-2 border-transparent hover:border-white/10 focus:border-emerald-400 focus:outline-none transition-all font-mono tracking-tight placeholder-zinc-700"
               autoFocus
             />
           </div>
 
-          <p className="text-[11px] text-zinc-400 mt-2 font-mono">
+          <p className="text-[10px] sm:text-[11px] text-zinc-400 mt-2 font-mono">
             Direct instant settlement to your {currentUser.ips_network}
           </p>
 
           {/* Quick Amount Chips */}
-          <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-4 flex-wrap">
             {quickAmounts.map((amt) => (
               <button
                 key={amt}
                 type="button"
                 onClick={() => handleQuickAdd(amt)}
-                className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-white/[0.08] hover:border-emerald-500/40 transition-all active:scale-95"
+                className="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-semibold bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-white/[0.08] hover:border-emerald-500/40 transition-all active:scale-95"
               >
                 +{amt}
               </button>
@@ -264,16 +264,16 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Dinner split 🍕, Rent, Concert ticket"
-              className="w-full px-4 py-3 bg-zinc-950 border border-white/[0.08] rounded-2xl text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all"
+              className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-zinc-950 border border-white/[0.08] rounded-2xl text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-all"
             />
           </div>
         </div>
 
-        {/* 5. Primary Action Button (Vibrant Emerald on Black) */}
+        {/* 5. Primary Action Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all duration-200 disabled:opacity-50 active:scale-[0.98] group"
+          className="w-full py-3.5 sm:py-4 px-5 sm:px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all duration-150 disabled:opacity-50 active:scale-[0.98] group"
         >
           {isSubmitting ? (
             <>
@@ -282,7 +282,7 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
             </>
           ) : (
             <>
-              <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <QrCode className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
               <span>Generate Request QR</span>
               <ArrowRight className="w-4 h-4 ml-0.5 group-hover:translate-x-1 transition-transform stroke-[2.5]" />
             </>

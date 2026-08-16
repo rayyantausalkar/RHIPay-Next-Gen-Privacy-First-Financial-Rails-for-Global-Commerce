@@ -12,6 +12,10 @@ from app.models.zk_proof import (
     ZKProofGenerateResponse,
     ZKProofVerifyRequest,
     ZKProofVerifyResponse,
+    MerkleRootValidateRequest,
+    MerkleRootValidateResponse,
+    MerkleTreeUpdateRequest,
+    MerkleTreeUpdateResponse,
 )
 
 
@@ -58,6 +62,9 @@ class MerkleTreeService:
         self._zeros: List[int] = [0] * (self.DEPTH + 1)
         self._nullifiers_spent: set = set()
 
+        # Historical root ring-buffer / cache: Map[root_hex_lower, (timestamp, participants_count)]
+        self._historical_roots: Dict[str, Tuple[datetime, int]] = {}
+
         # Precompute zero hashes for empty nodes
         curr_zero = PoseidonHasher.str_to_field("RHIPAY_MERKLE_ZERO_LEAF")
         self._zeros[0] = curr_zero
@@ -89,6 +96,11 @@ class MerkleTreeService:
             leaf_val = self._leaves[idx]
             return idx, PoseidonHasher.field_to_hex(leaf_val)
 
+        # Before mutating, record old root in historical cache
+        if self._leaves:
+            old_root = PoseidonHasher.field_to_hex(self.get_merkle_root()).lower()
+            self._historical_roots[old_root] = (datetime.now(timezone.utc), len(self._leaves))
+
         # Derive commitment: Poseidon(secret, kyc_tier)
         secret = PoseidonHasher.str_to_field(f"RHIPAY_SECRET_{clean_proxy}_{spoke}")
         commitment = PoseidonHasher.hash_2(secret, kyc_tier)
@@ -105,7 +117,6 @@ class MerkleTreeService:
 
         # Compute root dynamically from leaves
         current_layer = list(self._leaves)
-        # Pad to power of 2 for current level
         for level in range(self.DEPTH):
             next_layer = []
             layer_len = len(current_layer)
@@ -116,10 +127,78 @@ class MerkleTreeService:
             current_layer = next_layer
         return current_layer[0]
 
+    def validate_root(self, root_hex: str, max_age_seconds: int = 3600) -> MerkleRootValidateResponse:
+        start_time = time.perf_counter()
+        now = datetime.now(timezone.utc)
+        clean_submitted = root_hex.strip().lower()
+
+        current_root_hex = PoseidonHasher.field_to_hex(self.get_merkle_root()).lower()
+
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        # 1. Matches active current root
+        if clean_submitted == current_root_hex:
+            return MerkleRootValidateResponse(
+                is_valid=True,
+                is_current_root=True,
+                is_historical_cached=False,
+                status="ACTIVE_ROOT_VERIFIED",
+                merkle_root=root_hex,
+                tree_depth=self.DEPTH,
+                total_participants=len(self._leaves),
+                root_age_seconds=0.0,
+                validation_time_ms=max(elapsed_ms, 0.4),
+                error_details=None,
+            )
+
+        # 2. Matches valid historical cached root within TTL window
+        if clean_submitted in self._historical_roots:
+            cached_time, cached_count = self._historical_roots[clean_submitted]
+            age_sec = (now - cached_time).total_seconds()
+            if age_sec <= max_age_seconds:
+                return MerkleRootValidateResponse(
+                    is_valid=True,
+                    is_current_root=False,
+                    is_historical_cached=True,
+                    status="HISTORICAL_ROOT_ACCEPTED",
+                    merkle_root=root_hex,
+                    tree_depth=self.DEPTH,
+                    total_participants=cached_count,
+                    root_age_seconds=round(age_sec, 2),
+                    validation_time_ms=max(elapsed_ms, 0.5),
+                    error_details=None,
+                )
+            else:
+                return MerkleRootValidateResponse(
+                    is_valid=False,
+                    is_current_root=False,
+                    is_historical_cached=True,
+                    status="ROOT_EXPIRED_HISTORICAL",
+                    merkle_root=root_hex,
+                    tree_depth=self.DEPTH,
+                    total_participants=cached_count,
+                    root_age_seconds=round(age_sec, 2),
+                    validation_time_ms=max(elapsed_ms, 0.5),
+                    error_details=f"Historical root expired: age {round(age_sec, 1)}s exceeds tolerance {max_age_seconds}s",
+                )
+
+        # 3. Unknown / Malformed / Tampered root
+        return MerkleRootValidateResponse(
+            is_valid=False,
+            is_current_root=False,
+            is_historical_cached=False,
+            status="ROOT_REJECTED_UNKNOWN",
+            merkle_root=root_hex,
+            tree_depth=self.DEPTH,
+            total_participants=len(self._leaves),
+            root_age_seconds=-1.0,
+            validation_time_ms=max(elapsed_ms, 0.5),
+            error_details="Invalid or unrecognized Merkle tree root: not part of active or historical registry",
+        )
+
     def get_membership_path(self, proxy: str, spoke: str) -> Optional[Dict[str, Any]]:
         clean_proxy = proxy.strip().replace(" ", "").lower()
         if clean_proxy not in self._proxy_to_index:
-            # Dynamically register on the fly for any valid proxy
             self.register_member(clean_proxy, spoke, 1)
 
         leaf_idx = self._proxy_to_index[clean_proxy]
@@ -128,7 +207,6 @@ class MerkleTreeService:
         path_elements: List[str] = []
         path_indices: List[int] = []
 
-        # Reconstruct path
         current_layer = list(self._leaves)
         current_idx = leaf_idx
 
@@ -144,7 +222,6 @@ class MerkleTreeService:
             path_elements.append(PoseidonHasher.field_to_hex(sibling_val))
             path_indices.append(is_right)
 
-            # Move to parent level
             next_layer = []
             for i in range(0, len(current_layer), 2):
                 l = current_layer[i]
@@ -185,6 +262,21 @@ class ZKService:
             last_updated=datetime.now(timezone.utc),
         )
 
+    def validate_merkle_root(self, req: MerkleRootValidateRequest) -> MerkleRootValidateResponse:
+        return self.tree_service.validate_root(req.merkle_root)
+
+    def push_tree_update(self, req: MerkleTreeUpdateRequest) -> MerkleTreeUpdateResponse:
+        prev_root = PoseidonHasher.field_to_hex(self.tree_service.get_merkle_root())
+        self.tree_service.register_member(req.new_leaf_proxy, req.spoke, 1)
+        new_root = PoseidonHasher.field_to_hex(self.tree_service.get_merkle_root())
+
+        return MerkleTreeUpdateResponse(
+            previous_merkle_root=prev_root,
+            new_merkle_root=new_root,
+            total_participants=len(self.tree_service._leaves),
+            updated_at=datetime.now(timezone.utc),
+        )
+
     def get_merkle_path(self, req: MerklePathRequest) -> MerklePathResponse:
         res = self.tree_service.get_membership_path(req.identity_proxy, req.sender_spoke)
         return MerklePathResponse(
@@ -197,28 +289,20 @@ class ZKService:
         )
 
     def generate_proof(self, req: ZKProofGenerateRequest) -> ZKProofGenerateResponse:
-        """
-        Executes client-side Circom/Groth16 witness generator (<1.2s execution).
-        Proves sender belongs to the central Merkle tree without revealing identity secret.
-        """
         start_time = time.perf_counter()
 
-        # 1. Retrieve Merkle path
         path_info = self.tree_service.get_membership_path(req.identity_proxy, req.sender_spoke)
         merkle_root = path_info["merkle_root"]
         leaf_commitment = path_info["leaf_commitment"]
         leaf_idx = path_info["leaf_index"]
 
-        # 2. Compute Secret and Anti-Replay Nullifier
         clean_proxy = req.identity_proxy.strip().replace(" ", "").lower()
         secret = PoseidonHasher.str_to_field(f"RHIPAY_SECRET_{clean_proxy}_{req.sender_spoke}")
         quote_hash = PoseidonHasher.str_to_field(req.quote_id)
         
-        # Nullifier = Poseidon(secret, quote_hash, leaf_idx)
         nullifier_int = PoseidonHasher.hash_many([secret, quote_hash, leaf_idx])
         nullifier_hex = PoseidonHasher.field_to_hex(nullifier_int)
 
-        # 3. Simulate Groth16 Proof Curve Points on BN254 G1/G2
         seed_hash = hashlib.sha256(f"{nullifier_hex}:{merkle_root}".encode()).hexdigest()
         
         pi_a = [
@@ -253,7 +337,6 @@ class ZKService:
         }
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-
         proof_id = f"RHIPAY-ZKP-{uuid.uuid4().hex[:12].upper()}"
 
         return ZKProofGenerateResponse(
@@ -276,14 +359,11 @@ class ZKService:
     def verify_proof(self, req: ZKProofVerifyRequest) -> ZKProofVerifyResponse:
         start_time = time.perf_counter()
 
-        # Check Root
-        curr_root = PoseidonHasher.field_to_hex(self.tree_service.get_merkle_root())
-        root_verified = (req.merkle_root.lower() == curr_root.lower())
+        val_res = self.tree_service.validate_root(req.merkle_root)
+        root_verified = val_res.is_valid
 
-        # Check Nullifier anti-replay
         nullifier_fresh = self.tree_service.verify_nullifier(req.nullifier_hash)
 
-        # Check Proof Points structure
         proof_structure_valid = bool(
             "pi_a" in req.proof and
             "pi_b" in req.proof and
@@ -296,7 +376,7 @@ class ZKService:
 
         error_msg = None
         if not root_verified:
-            error_msg = "Invalid Merkle root: sender commitment not part of current state"
+            error_msg = val_res.error_details or "Invalid Merkle root"
         elif not nullifier_fresh:
             error_msg = "Double-spend detected: nullifier hash already spent"
         elif not proof_structure_valid:

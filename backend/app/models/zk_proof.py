@@ -70,3 +70,53 @@ class ZKProofVerifyResponse(BaseModel):
     merkle_root_verified: bool
     verification_time_ms: float
     error_details: Optional[str] = None
+
+
+class MerkleRootValidateRequest(BaseModel):
+    merkle_root: str = Field(..., description="256-bit Poseidon Merkle root to validate against central registry")
+    sender_spoke: Optional[str] = Field(default="IN", description="Domestic spoke originating proof")
+    kyc_tier_required: Optional[int] = Field(default=1, description="Required KYC authorization tier")
+
+
+class MerkleRootValidateResponse(BaseModel):
+    is_valid: bool
+    is_current_root: bool
+    is_historical_cached: bool
+    status: str
+    merkle_root: str
+    tree_depth: int = 16
+    total_participants: int
+    root_age_seconds: float
+    validation_time_ms: float
+    error_details: Optional[str] = None
+
+
+class MerkleTreeUpdateRequest(BaseModel):
+    new_leaf_proxy: str = Field(..., description="Proxy alias of newly enrolled participant")
+    spoke: str = Field(default="IN", description="Participant home spoke")
+
+
+class MerkleTreeUpdateResponse(BaseModel):
+    previous_merkle_root: str
+    new_merkle_root: str
+    total_participants: int
+    updated_at: datetime
+
+
+class Groth16VerifyRequest(BaseModel):
+    proof: Dict[str, Any] = Field(..., description="Groth16 elliptic curve proof points (pi_a, pi_b, pi_c)")
+    public_signals: List[str] = Field(..., description="Public inputs: [merkle_root, nullifier_hash, quote_id_hash, kyc_tier]")
+    circuit_name: Optional[str] = Field(default="rhipay_identity_membership_v1", description="Target circuit name")
+
+
+class Groth16VerifyResponse(BaseModel):
+    is_valid: bool
+    pairing_check_passed: bool
+    public_signals_verified: bool
+    circuit_name: str
+    curve: str = "bn128"
+    protocol: str = "groth16"
+    verification_time_ms: float
+    pairing_equation_evaluated: str
+    constraints_checked_count: int = 1048
+    error_details: Optional[str] = None

@@ -50,8 +50,8 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
 
   const proofStages = [
     "Computing Poseidon Identity Commitment...",
-    "Traversing Depth-16 Merkle Tree Sibling Path...",
-    "Solving R1CS Circom Constraints on BN254 Curve...",
+    "Traversing Depth-16 Merkle Tree Path...",
+    "Solving R1CS Circom Constraints (BN254)...",
     "Synthesizing Groth16 Proof Points (πA, πB, πC)...",
   ];
 
@@ -110,16 +110,16 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
   }, [quote.quote_id, recipient, senderCountry, senderProxy]);
 
   return (
-    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
+    <div className="w-full max-w-md mx-auto bg-[#09090b] border border-white/[0.08] rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
       {/* Ambient background glow */}
       <div className="absolute -top-32 -left-32 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-green-500/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header Bar */}
-      <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-white/[0.08]">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors active:scale-95"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Back</span>
@@ -135,25 +135,25 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
 
       {/* Hero Card: Generating vs Generated */}
       {isGenerating ? (
-        <div className="my-8 text-center space-y-6">
-          <div className="relative mx-auto w-20 h-20">
+        <div className="my-6 sm:my-8 text-center space-y-4 sm:space-y-6">
+          <div className="relative mx-auto w-16 h-16 sm:w-20 sm:h-20">
             <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-75" />
-            <div className="relative w-20 h-20 rounded-2xl bg-zinc-950 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/10">
-              <Cpu className="w-9 h-9 animate-pulse" />
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-950 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/10">
+              <Cpu className="w-8 h-8 sm:w-9 sm:h-9 animate-pulse" />
             </div>
           </div>
 
           <div>
-            <h3 className="text-base font-bold text-white tracking-tight">
+            <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
               Executing Circom ZK-SNARK Circuit
             </h3>
-            <p className="text-xs text-zinc-400 font-mono mt-1">
-              BN254 Scalar Field • Poseidon Hash Permutation
+            <p className="text-[11px] sm:text-xs text-zinc-400 font-mono mt-0.5 sm:mt-1">
+              BN254 Scalar Field • Poseidon Permutation
             </p>
           </div>
 
           {/* Animated Execution Stages */}
-          <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/[0.06] text-left space-y-2.5">
+          <div className="p-3 sm:p-4 rounded-2xl bg-zinc-950/80 border border-white/[0.06] text-left space-y-2 sm:space-y-2.5">
             {proofStages.map((stage, idx) => {
               const isDone = activeStepIndex > idx;
               const isCurrent = activeStepIndex === idx;
@@ -161,7 +161,7 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
               return (
                 <div
                   key={stage}
-                  className={`flex items-center gap-2.5 text-xs transition-all ${
+                  className={`flex items-center gap-2 sm:gap-2.5 text-xs transition-all ${
                     isDone
                       ? "text-emerald-400 font-semibold"
                       : isCurrent
@@ -183,53 +183,53 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
           </div>
         </div>
       ) : proofResult ? (
-        <div className="space-y-4 my-3 animate-in fade-in zoom-in-95 duration-200">
+        <div className="space-y-3.5 sm:space-y-4 my-2 sm:my-3 animate-in fade-in zoom-in-95 duration-200">
           {/* Performance Speed Telemetry Badge */}
-          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold text-white">
-                Client Proof Generated in {proofResult.generation_time_ms}ms
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Zap className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="text-xs font-bold text-white truncate">
+                Proof in {proofResult.generation_time_ms}ms
               </span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500 text-black">
-              &lt; 1.2s Target Passed
+            <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold bg-emerald-500 text-black flex-shrink-0">
+              &lt;1.2s Target
             </span>
           </div>
 
           {/* Zero-Knowledge Privacy Architecture Disclosure Card */}
-          <div className="p-4 rounded-3xl bg-zinc-950 border border-white/[0.08] space-y-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 pb-2 border-b border-white/[0.06]">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Zero-Knowledge Privacy Proof Guarantees
+          <div className="p-3.5 sm:p-4 rounded-3xl bg-zinc-950 border border-white/[0.08] space-y-2.5 sm:space-y-3">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 pb-2 border-b border-white/[0.06]">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span>Zero-Knowledge Privacy Proof</span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Identity Secret:</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-400 flex-shrink-0">Identity Secret:</span>
                 <span className="font-mono font-bold text-emerald-400 flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Hidden (0-Knowledge)
+                  <Lock className="w-3 h-3 flex-shrink-0" /> Hidden
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Merkle Tree Root:</span>
-                <span className="font-mono text-zinc-300 truncate max-w-[200px]" title={proofResult.merkle_root}>
-                  {proofResult.merkle_root.slice(0, 18)}...
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-400 flex-shrink-0">Merkle Root:</span>
+                <span className="font-mono text-zinc-300 truncate text-right" title={proofResult.merkle_root}>
+                  {proofResult.merkle_root.slice(0, 16)}...
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Anti-Replay Nullifier:</span>
-                <span className="font-mono text-zinc-300 truncate max-w-[200px]" title={proofResult.nullifier_hash}>
-                  {proofResult.nullifier_hash.slice(0, 18)}...
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-400 flex-shrink-0">Nullifier:</span>
+                <span className="font-mono text-zinc-300 truncate text-right" title={proofResult.nullifier_hash}>
+                  {proofResult.nullifier_hash.slice(0, 16)}...
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">KYC Compliance:</span>
-                <span className="font-semibold text-emerald-400">
-                  Tier 1 Participant (Proven)
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-400 flex-shrink-0">KYC Status:</span>
+                <span className="font-semibold text-emerald-400 truncate text-right">
+                  Tier 1 Participant
                 </span>
               </div>
             </div>
@@ -242,15 +242,15 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
               onClick={() => setShowRawProof(!showRawProof)}
               className="w-full p-3 flex items-center justify-between text-xs text-zinc-400 hover:text-white transition-colors text-left"
             >
-              <div className="flex items-center gap-2 font-mono text-[11px]">
-                <Code2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Inspect Groth16 Proof Points (πA, πB, πC)</span>
+              <div className="flex items-center gap-2 font-mono text-[11px] truncate">
+                <Code2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="truncate">Inspect Proof Points (πA, πB, πC)</span>
               </div>
-              {showRawProof ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showRawProof ? <ChevronUp className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />}
             </button>
 
             {showRawProof && (
-              <div className="p-3 pt-0 text-[10px] font-mono text-zinc-400 space-y-2 border-t border-white/[0.04] max-h-40 overflow-y-auto">
+              <div className="p-3 pt-0 text-[10px] font-mono text-zinc-400 space-y-2 border-t border-white/[0.04] max-h-36 overflow-y-auto">
                 <div>
                   <span className="text-emerald-400 font-bold">πA (G1 Point):</span>
                   <div className="truncate text-zinc-500">{proofResult.pi_a[0]}</div>
@@ -277,11 +277,11 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
               toast.success("Proof Verified! Ready for Encrypted PII Envelope & Settlement");
               onProceedToEnvelope(proofResult);
             }}
-            className="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] group"
+            className="w-full py-3.5 sm:py-4 px-5 sm:px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] group"
           >
             <Lock className="w-4 h-4 stroke-[2.5]" />
-            <span>Proceed to Encrypted Travel Rule Envelope</span>
-            <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform stroke-[2.5]" />
+            <span className="truncate">Proceed to Encrypted Travel Rule Envelope</span>
+            <ArrowRight className="w-4 h-4 ml-0.5 group-hover:translate-x-1 transition-transform stroke-[2.5] flex-shrink-0" />
           </button>
         </div>
       ) : null}

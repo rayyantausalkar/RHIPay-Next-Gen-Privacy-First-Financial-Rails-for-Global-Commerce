@@ -30,69 +30,69 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <header className="border-b border-white/[0.08] bg-black/90 backdrop-blur-xl sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
           {/* Brand Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40">
-              <ShieldCheck className="w-6 h-6 text-black stroke-[2.5]" />
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40 flex-shrink-0">
+              <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5]" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-white">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-base sm:text-xl font-bold tracking-tight text-white">
                   RHIPay
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/25 tracking-wider font-mono">
-                  NEXUS P2P
+                <span className="px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/25 tracking-wider font-mono">
+                  NEXUS
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 hidden sm:block">
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 hidden sm:block truncate">
                 Instant Settlement & ZKP Privacy
               </p>
             </div>
           </div>
 
           {/* Unified Wallet Tabs Navigation */}
-          <nav className="flex items-center gap-1 bg-zinc-950 p-1.5 rounded-2xl border border-white/[0.08] shadow-inner">
+          <nav className="flex items-center gap-0.5 sm:gap-1 bg-zinc-950 p-1 rounded-2xl border border-white/[0.08] shadow-inner flex-shrink-0">
             <button
               onClick={() => onSelectTab("receive")}
-              className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 ${
+              className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-150 active:scale-95 ${
                 activeTab === "receive"
                   ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 font-bold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
               }`}
             >
-              <ArrowDownLeft className="w-4 h-4" />
+              <ArrowDownLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Receive</span>
             </button>
 
             <button
               onClick={() => onSelectTab("send")}
-              className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 ${
+              className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-150 active:scale-95 ${
                 activeTab === "send"
                   ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 font-bold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
               }`}
             >
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Send</span>
             </button>
 
             <button
               onClick={() => onSelectTab("nexus")}
-              className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-200 ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-150 active:scale-95 ${
                 activeTab === "nexus"
                   ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 font-bold"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
               }`}
             >
-              <Activity className="w-4 h-4" />
+              <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Telemetry</span>
             </button>
           </nav>
 
           {/* Hub Status Pill */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-white/[0.08] bg-zinc-950">
+          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-white/[0.08] bg-zinc-950 flex-shrink-0">
             {hubOnline === true ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
