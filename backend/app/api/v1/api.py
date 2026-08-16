@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     iso20022,
     gateway,
     routing,
+    settlement,
 )
 
 api_router = APIRouter()
@@ -21,3 +22,4 @@ api_router.include_router(compliance.router, prefix="/compliance", tags=["FATF T
 api_router.include_router(iso20022.router, prefix="/iso20022", tags=["ISO 20022 Financial Messaging Standards"])
 api_router.include_router(gateway.router, prefix="/gateway", tags=["Central API Gateway & Message Ingestion"])
 api_router.include_router(routing.router, prefix="/routing", tags=["Supplementary Data Routing & Isolation"])
+api_router.include_router(settlement.router, prefix="/settlement", tags=["Two-Leg Atomic Settlement & Double-Entry Ledger"])

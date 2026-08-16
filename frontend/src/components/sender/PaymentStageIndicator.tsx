@@ -15,6 +15,9 @@ import {
   Check,
   Zap,
   Unlock,
+  Building2,
+  ArrowLeftRight,
+  Landmark,
 } from "lucide-react";
 
 export type PaymentStage =
@@ -29,7 +32,10 @@ export type PaymentStage =
   | "merkle"
   | "groth16"
   | "anti_replay"
-  | "crypto_gate";
+  | "crypto_gate"
+  | "spoke_a"
+  | "fx_swap"
+  | "spoke_b";
 
 interface PaymentStageIndicatorProps {
   currentStage: PaymentStage;
@@ -56,6 +62,9 @@ const STAGES: StageItem[] = [
   { id: "groth16", label: "Circuit Verifier", shortLabel: "Groth16", icon: ShieldCheck },
   { id: "anti_replay", label: "Anti-Replay", shortLabel: "Anti-Replay", icon: Zap },
   { id: "crypto_gate", label: "Crypto Gate", shortLabel: "Gate", icon: Unlock },
+  { id: "spoke_a", label: "Spoke A Debit", shortLabel: "Spoke A", icon: Building2 },
+  { id: "fx_swap", label: "Atomic FX Swap", shortLabel: "FX Swap", icon: ArrowLeftRight },
+  { id: "spoke_b", label: "Spoke B Credit", shortLabel: "Spoke B", icon: Landmark },
 ];
 
 export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
@@ -104,7 +113,7 @@ export const PaymentStageIndicator: React.FC<PaymentStageIndicatorProps> = ({
                   )}
                 </div>
 
-                <span className="text-[7px] sm:text-[8px] tracking-tight font-medium hidden sm:block truncate max-w-[28px]">
+                <span className="text-[7px] sm:text-[8px] tracking-tight font-medium hidden sm:block truncate max-w-[22px]">
                   {stage.shortLabel}
                 </span>
               </button>

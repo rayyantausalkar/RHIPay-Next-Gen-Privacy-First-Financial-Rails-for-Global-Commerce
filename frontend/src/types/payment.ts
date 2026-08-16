@@ -392,6 +392,118 @@ export interface CryptographicGateResponse {
   rejection_reasons: string[];
 }
 
+export interface LedgerJournalEntry {
+  entry_id: string;
+  account_id: string;
+  account_name: string;
+  account_type: string;
+  entry_type: "DEBIT" | "CREDIT";
+  amount_cents: number;
+  currency: string;
+  balance_after_cents: number;
+  timestamp: string;
+}
+
+export interface SpokeAExecutionRequest {
+  uetr: string;
+  clearance_token: string;
+  sender_proxy: string;
+  sender_spoke: string;
+  sender_currency: string;
+  sender_bic: string;
+  origin_debit_amount: number;
+  fx_rate: number;
+  destination_amount: number;
+  recipient_currency: string;
+  quote_id: string;
+  fx_provider_id?: string;
+}
+
+export interface SpokeAExecutionResponse {
+  settlement_id: string;
+  uetr: string;
+  status: string;
+  home_ips_reference: string;
+  sender_spoke: string;
+  sender_currency: string;
+  amount_debited_cents: number;
+  amount_debited_formatted: string;
+  fxp_pool_credited_cents: number;
+  fxp_pool_credited_formatted: string;
+  double_entry_balanced: boolean;
+  journal_entries: LedgerJournalEntry[];
+  settlement_latency_ms: number;
+  executed_at: string;
+}
+
+export interface AtomicFxSwapRequest {
+  uetr: string;
+  settlement_id: string;
+  quote_id: string;
+  origin_currency: string;
+  origin_amount_cents: number;
+  destination_currency: string;
+  destination_amount_cents: number;
+  fx_rate: number;
+  fx_provider_id?: string;
+  herstatt_risk_mitigation?: string;
+}
+
+export interface AtomicFxSwapResponse {
+  swap_id: string;
+  uetr: string;
+  status: string;
+  herstatt_risk_status: string;
+  pvp_atomic_commit_guaranteed: boolean;
+  fx_provider_id: string;
+  origin_inflow_formatted: string;
+  destination_outflow_formatted: string;
+  effective_fx_rate: number;
+  journal_entries: LedgerJournalEntry[];
+  atomic_execution_latency_ms: number;
+  executed_at: string;
+}
+
+export interface SpokeBExecutionRequest {
+  uetr: string;
+  swap_id: string;
+  quote_id: string;
+  recipient_proxy: string;
+  recipient_spoke?: string;
+  recipient_currency?: string;
+  recipient_bic?: string;
+  recipient_name?: string;
+  destination_amount: number;
+  destination_amount_cents: number;
+  fx_provider_id?: string;
+}
+
+export interface SpokeBExecutionResponse {
+  disbursement_id: string;
+  uetr: string;
+  status: string;
+  host_ips_reference: string;
+  recipient_spoke: string;
+  recipient_currency: string;
+  amount_credited_cents: number;
+  amount_credited_formatted: string;
+  recipient_name: string;
+  double_entry_balanced: boolean;
+  journal_entries: LedgerJournalEntry[];
+  settlement_latency_ms: number;
+  executed_at: string;
+}
+
+export interface AccountBalance {
+  account_id: string;
+  account_name: string;
+  account_type: string;
+  currency: string;
+  balance_cents: number;
+  balance_formatted: string;
+  last_updated: string;
+}
+
 export interface RegulatorPublicKeyResponse {
   country_code: string;
   regulator_name: string;
