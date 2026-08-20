@@ -17,6 +17,7 @@ import { UserProfile, PRESET_P2P_PROFILES } from "@/types/user";
 import { createPaymentRequest, getNetworkSpokes } from "@/lib/api";
 import { CountryCurrencySelectorModal } from "./CountryCurrencySelectorModal";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface ConsumerReceiveCardProps {
   onRequestGenerated: (request: DynamicPaymentRequestResponse) => void;
@@ -25,8 +26,57 @@ interface ConsumerReceiveCardProps {
 export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
   onRequestGenerated,
 }) => {
+  const { user: authUser } = useAuth();
+
+  const countryFlags: Record<string, { flag: string; name: string; symbol: string }> = {
+    SG: { flag: "🇸🇬", name: "Singapore", symbol: "S$" },
+    IN: { flag: "🇮🇳", name: "India", symbol: "₹" },
+    AE: { flag: "🇦🇪", name: "UAE", symbol: "د.إ" },
+    US: { flag: "🇺🇸", name: "United States", symbol: "$" },
+    GB: { flag: "🇬🇧", name: "United Kingdom", symbol: "£" },
+    EU: { flag: "🇪🇺", name: "Eurozone", symbol: "€" },
+    JP: { flag: "🇯🇵", name: "Japan", symbol: "¥" },
+    TH: { flag: "🇹🇭", name: "Thailand", symbol: "฿" },
+    MY: { flag: "🇲🇾", name: "Malaysia", symbol: "RM" },
+    AU: { flag: "🇦🇺", name: "Australia", symbol: "A$" },
+    CA: { flag: "🇨🇦", name: "Canada", symbol: "C$" },
+    BR: { flag: "🇧🇷", name: "Brazil", symbol: "R$" },
+  };
+
+  const getProfileFromAuth = (au: NonNullable<typeof authUser>): UserProfile => {
+    const meta = countryFlags[au.home_country] || { flag: "🌐", name: au.home_country, symbol: "$" };
+    const initials = au.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "RH";
+
+    return {
+      id: au.id,
+      name: au.name,
+      avatar_initials: initials,
+      handle: `@${au.name.toLowerCase().replace(/\s+/g, ".")}`,
+      country_code: au.home_country,
+      country_name: meta.name,
+      currency: au.preferred_currency,
+      currency_symbol: meta.symbol,
+      flag_emoji: meta.flag,
+      proxy_type: au.proxy_type || "MOBILE",
+      proxy_value: au.proxy_value || au.contact_number,
+      ips_network: au.bank_name,
+      is_kyc_verified: true,
+    };
+  };
+
   // Current Logged-in User Profile (Auto-bound)
-  const [currentUser, setCurrentUser] = useState<UserProfile>(PRESET_P2P_PROFILES[0]);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    if (authUser) {
+      return getProfileFromAuth(authUser);
+    }
+    return PRESET_P2P_PROFILES[0];
+  });
+
   const [showProfileSwitcher, setShowProfileSwitcher] = useState<boolean>(false);
 
   // Spoke & Currency State
@@ -34,6 +84,16 @@ export const ConsumerReceiveCard: React.FC<ConsumerReceiveCardProps> = ({
   const [selectedCountry, setSelectedCountry] = useState<string>(currentUser.country_code);
   const [selectedCurrency, setSelectedCurrency] = useState<string>(currentUser.currency);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  // Update when authUser changes
+  useEffect(() => {
+    if (authUser) {
+      const updated = getProfileFromAuth(authUser);
+      setCurrentUser(updated);
+      setSelectedCountry(authUser.home_country);
+      setSelectedCurrency(authUser.preferred_currency);
+    }
+  }, [authUser]);
 
   // Amount & Note State
   const [amountStr, setAmountStr] = useState<string>("45.00");

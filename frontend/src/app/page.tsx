@@ -1,84 +1,64 @@
 "use client";
 
-import React, { useState } from "react";
-import { Navigation } from "@/components/Navigation";
-import { ConsumerReceiveCard } from "@/components/receiver/ConsumerReceiveCard";
-import { ConsumerQRPresenter } from "@/components/receiver/ConsumerQRPresenter";
-import { RecentRequestsList } from "@/components/receiver/RecentRequestsList";
-import { SenderPayCard } from "@/components/sender/SenderPayCard";
-import { AdminComplianceDashboard } from "@/components/admin/AdminComplianceDashboard";
-import { DynamicPaymentRequestResponse } from "@/types/payment";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { LandingNavbar } from "@/components/landing/LandingNavbar";
+import { HeroSection } from "@/components/landing/HeroSection";
+import { TrustMarquee } from "@/components/landing/TrustMarquee";
+import { AboutSection } from "@/components/landing/AboutSection";
+import { SolutionsSection } from "@/components/landing/SolutionsSection";
+import { FeaturesSection } from "@/components/landing/FeaturesSection";
+import { WorkflowSection } from "@/components/landing/WorkflowSection";
+import { CtaBanner } from "@/components/landing/CtaBanner";
+import { LandingFooter } from "@/components/landing/LandingFooter";
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState<"receive" | "send" | "nexus">("receive");
-  const [activeRequest, setActiveRequest] = useState<DynamicPaymentRequestResponse | null>(null);
-  const [refreshListCount, setRefreshListCount] = useState<number>(0);
+export default function LandingPage() {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
 
-  const handleRequestGenerated = (req: DynamicPaymentRequestResponse) => {
-    setActiveRequest(req);
-    setRefreshListCount((prev) => prev + 1);
-  };
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace("/app");
+    }
+  }, [user, isLoading, router]);
 
-  const handleResetRequest = () => {
-    setActiveRequest(null);
-  };
+  if (!isLoading && user) {
+    return (
+      <div className="min-h-screen bg-[#040D14] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-black text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Top Navigation Bar */}
-      <Navigation activeTab={activeTab} onSelectTab={setActiveTab} />
+    <div className="min-h-screen flex flex-col bg-[#040D14] text-[#F5F7FA] relative selection:bg-emerald-500/30 selection:text-emerald-200">
+      {/* Top Glassmorphic Navigation */}
+      <LandingNavbar />
 
-      {/* Main Content Stage */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        {/* Tab 1: Receive Money / Request Dynamic QR */}
-        {activeTab === "receive" && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {activeRequest ? (
-              <div className="space-y-6">
-                <ConsumerQRPresenter
-                  request={activeRequest}
-                  onReset={handleResetRequest}
-                />
-                <RecentRequestsList
-                  onSelectRequest={(req) => setActiveRequest(req)}
-                  refreshTrigger={refreshListCount}
-                />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <ConsumerReceiveCard
-                  onRequestGenerated={handleRequestGenerated}
-                />
-                <div className="max-w-md mx-auto">
-                  <RecentRequestsList
-                    onSelectRequest={(req) => setActiveRequest(req)}
-                    refreshTrigger={refreshListCount}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      {/* 1. Hero Section (Clean 3D visual with landingHero.png) */}
+      <HeroSection />
 
-        {/* Tab 2: Send Money / Proxy Resolution & Name Inquiry */}
-        {activeTab === "send" && (
-          <div className="animate-in fade-in duration-200">
-            <SenderPayCard />
-          </div>
-        )}
+      {/* 2. Trust & Keywords Marquee (Secure, Global Payments, etc.) */}
+      <TrustMarquee />
 
-        {/* Tab 3: Nexus Telemetry & Compliance Hub */}
-        {activeTab === "nexus" && (
-          <div className="animate-in fade-in duration-200">
-            <AdminComplianceDashboard />
-          </div>
-        )}
-      </main>
+      {/* 3. About Section: The Single Intelligent Layer */}
+      <AboutSection />
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.06] py-4 text-center text-xs text-zinc-500 bg-black">
-        RHIPay Nexus V2.0 — Instant Cross-Border P2P Settlement & Zero-Knowledge Proofs
-      </footer>
+      {/* 4. Solutions Section: Individuals & Travelers vs Businesses */}
+      <SolutionsSection />
+
+      {/* 5. Features Section: Core Capabilities */}
+      <FeaturesSection />
+
+      {/* 6. How to Use / Workflow Section */}
+      <WorkflowSection />
+
+      {/* 7. Call To Action Banner */}
+      <CtaBanner />
+
+      {/* 8. Footer */}
+      <LandingFooter />
     </div>
   );
 }
