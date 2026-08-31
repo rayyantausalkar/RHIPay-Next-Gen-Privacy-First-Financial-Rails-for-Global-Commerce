@@ -11,7 +11,12 @@ from app.models.journey import (
     JourneyApproveRequest,
     JourneyRejectRequest,
 )
-from app.services.auth_service import engine
+from app.models.transaction import (
+    TransactionRecord,
+    JourneyCancelResponse,
+)
+from app.core.database import engine
+
 from app.services.fx_service import fx_service
 from app.services.notification_service import notification_service
 
@@ -115,7 +120,7 @@ class JourneyService:
             record.reviewed_at = datetime.now(timezone.utc)
             record.reviewed_by = approve_data.admin_email
 
-            # Credit user's wallet
+            # Deduct home bank balance and allocate to travel wallet
             user = session.exec(select(UserRecord).where(UserRecord.user_id == record.user_id)).first()
             if user:
                 added_home = approve_data.custom_amount_approved or record.home_amount_requested
@@ -127,11 +132,41 @@ class JourneyService:
                 else:
                     dest_amt = record.destination_amount_calculated
 
-                user.wallet_balance += added_home
-                user.travel_wallet_balance += dest_amt
+                # Deduct from home wallet balance (if positive) and credit travel wallet
+                user.wallet_balance = max(0.0, round(user.wallet_balance - added_home, 2))
+                user.travel_wallet_balance = round(user.travel_wallet_balance + dest_amt, 2)
                 user.active_journey_country = record.destination_country
                 user.active_journey_currency = record.destination_currency
                 session.add(user)
+
+                # Record transaction
+                now = datetime.now(timezone.utc)
+                tx_record = TransactionRecord(
+                    transaction_id=f"TX-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}",
+                    uetr=str(uuid.uuid4()),
+                    sender_user_id=user.user_id,
+                    sender_name=user.name,
+                    sender_proxy=user.proxy_value,
+                    sender_country=user.home_country,
+                    sender_currency=record.home_currency,
+                    sender_amount=added_home,
+                    sender_account_number=user.account_number,
+                    recipient_user_id=user.user_id,
+                    recipient_name=f"RHI Pay Travel Vault ({record.destination_country})",
+                    recipient_proxy=f"WALLET-{record.destination_currency}",
+                    recipient_country=record.destination_country,
+                    recipient_currency=record.destination_currency,
+                    recipient_amount=dest_amt,
+                    recipient_account_number=f"RHIVLT{record.destination_currency}",
+                    exchange_rate=record.exchange_rate,
+                    purpose_code="TRAVEL_ALLOCATION",
+                    status="SETTLED",
+                    category="JOURNEY_ALLOCATION",
+                    iso_status="ACCP_SETTLED_FUNDS_AVAILABLE",
+                    note=f"Approved travel exchange allocation for {record.destination_country}",
+                    created_at=now,
+                )
+                session.add(tx_record)
 
             session.add(record)
             session.commit()
@@ -141,7 +176,7 @@ class JourneyService:
             notification_service.create_notification(
                 user_id=record.user_id,
                 title="🎉 Travel Currency Approved!",
-                message=f"RHI Pay authorities approved your travel exchange. {record.destination_currency} {record.destination_amount_calculated:,.2f} ({record.home_currency} {record.home_amount_requested:,.2f}) has been credited to your balance for travel to {record.destination_country}.",
+                message=f"RHI Pay authorities approved your travel exchange. {record.destination_currency} {record.destination_amount_calculated:,.2f} ({record.home_currency} {record.home_amount_requested:,.2f}) has been credited to your RHI Pay wallet for travel to {record.destination_country}.",
                 notif_type="JOURNEY_APPROVAL",
             )
 
@@ -177,5 +212,130 @@ class JourneyService:
 
             return record
 
+    def cancel_journey(self, user_id: str, reason: Optional[str] = "Cancelled by user") -> JourneyCancelResponse:
+        """
+        Cancel active journey:
+        1. Calculate home worth of remaining travel wallet balance
+        2. Deduct 2.5% reconversion / cancellation penalty
+        3. Refund net balance to primary user account
+        4. Reset travel balance & clear active journey
+        5. Record transaction in database & send push notification
+        """
+        with Session(engine) as session:
+            user = session.exec(select(UserRecord).where(UserRecord.user_id == user_id)).first()
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+
+            journey = session.exec(
+                select(JourneyRequestRecord)
+                .where(JourneyRequestRecord.user_id == user_id)
+                .order_by(JourneyRequestRecord.created_at.desc())
+            ).first()
+
+            if not journey or journey.status not in ["APPROVED", "PENDING"]:
+                raise ValueError("No active travel journey found to cancel.")
+
+            home_cur = user.preferred_currency or "INR"
+            dest_cur = user.active_journey_currency or (journey.destination_currency if journey else "USD")
+
+            if journey.status == "PENDING":
+                # For pending requests, funds have not been deducted yet
+                journey.status = "CANCELLED"
+                journey.rejection_reason = "Cancelled by user before approval."
+                session.add(journey)
+                session.commit()
+                return JourneyCancelResponse(
+                    success=True,
+                    user_id=user.user_id,
+                    gross_refund_home=0.0,
+                    penalty_fee_home=0.0,
+                    net_refund_home=0.0,
+                    home_currency=home_cur,
+                    new_wallet_balance=user.wallet_balance,
+                    message="Pending travel request cancelled. No penalty fee incurred.",
+                )
+
+            # For approved journeys: refund remaining travel balance
+            remaining_travel = user.travel_wallet_balance
+            if remaining_travel > 0:
+                # Convert back to home currency
+                if journey.exchange_rate and journey.exchange_rate > 0:
+                    gross_refund = round(remaining_travel / journey.exchange_rate, 2)
+                else:
+                    gross_refund = round(remaining_travel * 86.85, 2)
+            else:
+                gross_refund = 0.0
+
+            # Apply 2.5% penalty fee
+            penalty_rate = 0.025
+            penalty_fee = round(gross_refund * penalty_rate, 2)
+            net_refund = round(gross_refund - penalty_fee, 2)
+
+            # Credit back to user's primary bank account
+            user.wallet_balance = round(user.wallet_balance + net_refund, 2)
+            user.travel_wallet_balance = 0.0
+            dest_country = user.active_journey_country or journey.destination_country
+            user.active_journey_country = None
+            user.active_journey_currency = None
+
+            journey.status = "CANCELLED"
+            journey.rejection_reason = (
+                f"Journey cancelled by user. 2.5% fee ({home_cur} {penalty_fee:,.2f}) deducted. "
+                f"Net refund {home_cur} {net_refund:,.2f} returned to bank account."
+            )
+
+            now = datetime.now(timezone.utc)
+            tx_record = TransactionRecord(
+                transaction_id=f"TX-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}",
+                uetr=str(uuid.uuid4()),
+                sender_user_id=user.user_id,
+                sender_name=f"RHI Pay Travel Vault ({dest_country})",
+                sender_proxy=f"WALLET-{dest_cur}",
+                sender_country=dest_country,
+                sender_currency=dest_cur,
+                sender_amount=remaining_travel,
+                sender_account_number=f"RHIVLT{dest_cur}",
+                recipient_user_id=user.user_id,
+                recipient_name=user.name,
+                recipient_proxy=user.proxy_value,
+                recipient_country=user.home_country,
+                recipient_currency=home_cur,
+                recipient_amount=net_refund,
+                recipient_account_number=user.account_number,
+                exchange_rate=journey.exchange_rate if journey else 1.0,
+                purpose_code="JOURNEY_CANCELLATION_REFUND",
+                status="SETTLED",
+                category="JOURNEY_CANCELLATION_REFUND",
+                iso_status="ACCP_SETTLED_FUNDS_AVAILABLE",
+                note=f"Journey cancellation refund: {dest_cur} {remaining_travel:,.2f} returned to bank. 2.5% penalty: {home_cur} {penalty_fee:,.2f}, Net credited: {home_cur} {net_refund:,.2f}",
+                created_at=now,
+            )
+
+            session.add(user)
+            session.add(journey)
+            session.add(tx_record)
+            session.commit()
+            session.refresh(user)
+            session.refresh(journey)
+
+            notification_service.create_notification(
+                user_id=user.user_id,
+                title="✈️ Travel Journey Cancelled",
+                message=f"Journey to {dest_country} cancelled. Net refund of {home_cur} {net_refund:,.2f} credited to your bank account after 2.5% reconversion penalty ({home_cur} {penalty_fee:,.2f}).",
+                notif_type="SYSTEM",
+            )
+
+            return JourneyCancelResponse(
+                success=True,
+                user_id=user.user_id,
+                gross_refund_home=gross_refund,
+                penalty_fee_home=penalty_fee,
+                net_refund_home=net_refund,
+                home_currency=home_cur,
+                new_wallet_balance=user.wallet_balance,
+                message=f"Journey cancelled successfully. {home_cur} {net_refund:,.2f} refunded after 2.5% penalty ({home_cur} {penalty_fee:,.2f}).",
+            )
+
 
 journey_service = JourneyService()
+

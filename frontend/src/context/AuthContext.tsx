@@ -63,6 +63,44 @@ export interface BalanceData {
   verified: boolean;
 }
 
+export interface TransactionItem {
+  id?: number;
+  transaction_id: string;
+  uetr: string;
+  sender_user_id: string;
+  sender_name: string;
+  sender_proxy: string;
+  sender_country: string;
+  sender_currency: string;
+  sender_amount: number;
+  sender_account_number: string;
+  recipient_user_id?: string | null;
+  recipient_name: string;
+  recipient_proxy: string;
+  recipient_country: string;
+  recipient_currency: string;
+  recipient_amount: number;
+  recipient_account_number: string;
+  exchange_rate: number;
+  purpose_code: string;
+  status: "SETTLED" | "PROCESSING" | "FAILED";
+  category: "TRANSFER" | "JOURNEY_ALLOCATION" | "JOURNEY_CANCELLATION_REFUND";
+  iso_status: string;
+  note?: string | null;
+  created_at: string;
+}
+
+export interface CancelJourneyResult {
+  success: boolean;
+  user_id: string;
+  gross_refund_home: number;
+  penalty_fee_home: number;
+  net_refund_home: number;
+  home_currency: string;
+  new_wallet_balance: number;
+  message: string;
+}
+
 interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
@@ -78,6 +116,19 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   getAllUsers: () => Promise<AdminUserItem[]>;
   toggleBlockUser: (userId: string) => Promise<{ success: boolean; is_blocked?: boolean; error?: string }>;
+  getUserTransactions: (userId?: string) => Promise<TransactionItem[]>;
+  getAllTransactions: () => Promise<TransactionItem[]>;
+  executeTransfer: (payload: {
+    sender_user_id: string;
+    recipient_proxy: string;
+    recipient_name: string;
+    destination_country: string;
+    destination_currency: string;
+    requested_amount: number;
+    purpose_code?: string;
+    note?: string;
+  }) => Promise<{ success: boolean; data?: any; error?: string }>;
+  cancelJourney: (userId: string, reason?: string) => Promise<{ success: boolean; data?: CancelJourneyResult; error?: string }>;
 }
 
 export interface SignupFormData {
@@ -140,9 +191,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshUser = async () => {
-    if (!user) return;
+    const currentId = user?.id || (localStorage.getItem("rhipay_user") ? JSON.parse(localStorage.getItem("rhipay_user")!).id : null);
+    if (!currentId) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/user/${user.id}`);
+      const res = await fetch(`${API_BASE}/auth/user/${currentId}`);
       if (res.ok) {
         const freshUser = await res.json();
         setUser(freshUser);
@@ -278,6 +330,112 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const getUserTransactions = async (userId?: string): Promise<TransactionItem[]> => {
+    const targetId = userId || user?.id;
+    if (!targetId) return [];
+    try {
+      const res = await fetch(`${API_BASE}/auth/transactions/user/${targetId}`);
+      if (res.ok) {
+        return await res.json();
+      }
+      return [];
+    } catch (err) {
+      console.warn("Could not fetch user transactions:", err);
+      return [];
+    }
+  };
+
+  const getAllTransactions = async (): Promise<TransactionItem[]> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/transactions/all`);
+      if (res.ok) {
+        return await res.json();
+      }
+      return [];
+    } catch (err) {
+      console.warn("Could not fetch all transactions:", err);
+      return [];
+    }
+  };
+
+  const executeTransfer = async (payload: {
+    sender_user_id: string;
+    recipient_proxy: string;
+    recipient_name: string;
+    destination_country: string;
+    destination_currency: string;
+    requested_amount: number;
+    purpose_code?: string;
+    note?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/transfer/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Transfer failed" };
+      }
+
+      // Immediately sync state in memory for zero-lag UI updates
+      if (data.sender_wallet_balance !== undefined) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                wallet_balance: data.sender_wallet_balance,
+                travel_wallet_balance:
+                  data.sender_travel_wallet_balance !== undefined
+                    ? data.sender_travel_wallet_balance
+                    : prev.travel_wallet_balance,
+              }
+            : null
+        );
+      }
+
+      await refreshUser();
+      return { success: true, data };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error during transfer execution" };
+    }
+  };
+
+  const cancelJourney = async (userId: string, reason?: string): Promise<{ success: boolean; data?: CancelJourneyResult; error?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/journey/user/${userId}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancellation_reason: reason || "Cancelled by user" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Failed to cancel journey" };
+      }
+
+      // Immediately sync state in memory
+      if (data.new_wallet_balance !== undefined) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                wallet_balance: data.new_wallet_balance,
+                travel_wallet_balance: 0,
+                active_journey_country: null,
+                active_journey_currency: null,
+              }
+            : null
+        );
+      }
+
+      await refreshUser();
+      return { success: true, data };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error cancelling journey" };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -302,6 +460,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshUser,
         getAllUsers,
         toggleBlockUser,
+        getUserTransactions,
+        getAllTransactions,
+        executeTransfer,
+        cancelJourney,
       }}
     >
       {children}

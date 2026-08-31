@@ -15,6 +15,10 @@ import {
   Upload,
   FileCheck,
   Sparkles,
+  RefreshCcw,
+  Building2,
+  AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -55,7 +59,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   onClose,
   onJourneyUpdated,
 }) => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, cancelJourney } = useAuth();
   const { fetchNotifications } = useNotifications();
 
   const [destCountry, setDestCountry] = useState<string>("US");
@@ -66,6 +70,8 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [passportPreview, setPassportPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState<boolean>(false);
   const [existingJourney, setExistingJourney] = useState<any>(null);
   const [loadingExisting, setLoadingExisting] = useState<boolean>(true);
 
@@ -73,32 +79,33 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   const homeCurrency = user?.preferred_currency || "INR";
 
   // Fetch active journey status
-  useEffect(() => {
-    if (!user || !isOpen) return;
-
-    const fetchJourney = async () => {
-      setLoadingExisting(true);
-      try {
-        const res = await fetch(`${API_BASE}/journey/user/${user.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setExistingJourney(data);
-        } else {
-          setExistingJourney(null);
-        }
-      } catch {
+  const fetchJourney = async () => {
+    if (!user) return;
+    setLoadingExisting(true);
+    try {
+      const res = await fetch(`${API_BASE}/journey/user/${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setExistingJourney(data);
+      } else {
         setExistingJourney(null);
-      } finally {
-        setLoadingExisting(false);
       }
-    };
+    } catch {
+      setExistingJourney(null);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
 
-    fetchJourney();
+  useEffect(() => {
+    if (isOpen) {
+      fetchJourney();
+      setShowCancelConfirm(false);
+    }
   }, [user, isOpen]);
 
-  // Approximate FX conversion calculation
+  // FX conversion rates lookup
   const getExchangeRate = () => {
-    // USD base rates lookup
     const rates: Record<string, number> = {
       USD: 1.0,
       SGD: 1.345,
@@ -116,8 +123,6 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
 
     const homeRate = rates[homeCurrency] || 86.85;
     const destRate = rates[selectedDest.currency] || 1.0;
-
-    // 1 Home = (destRate / homeRate) Dest
     return destRate / homeRate;
   };
 
@@ -187,7 +192,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
       }
 
       toast.success("Journey Request Submitted!", {
-        description: "Your request is under review by RHI Pay authorities.",
+        description: "Your request is under review by RHI Pay Correspondent Bank authorities.",
       });
 
       setExistingJourney(data);
@@ -201,7 +206,47 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
     }
   };
 
+  // Requirement: Cancel Journey Option with 2.5% penalty deduction and refund to bank
+  const handleConfirmCancelJourney = async () => {
+    if (!user) return;
+    setIsCancelling(true);
+    try {
+      const res = await cancelJourney(user.id, "Trip Cancelled by User");
+      if (res.success && res.data) {
+        toast.success("Travel Journey Cancelled", {
+          description: res.data.message,
+        });
+        await refreshUser();
+        await fetchNotifications();
+        onJourneyUpdated?.();
+        onClose();
+      } else {
+        toast.error(res.error || "Failed to cancel journey");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Cancellation failed");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   if (!isOpen) return null;
+
+  const isApprovedJourney = existingJourney?.status === "APPROVED" || Boolean(user?.active_journey_country);
+  const isPendingJourney = existingJourney?.status === "PENDING";
+  const activeDestCountry = user?.active_journey_country || existingJourney?.destination_country;
+  const activeDestCountryObj = DESTINATION_COUNTRIES.find((c) => c.code === activeDestCountry);
+
+  // Penalty Calculation Breakdown for active travel wallet balance
+  const travelBalance = user?.travel_wallet_balance || 0;
+  const exchangeRateUsed = existingJourney?.exchange_rate || 0.0115;
+  const grossRefundHome = travelBalance > 0
+    ? exchangeRateUsed > 0
+      ? travelBalance / exchangeRateUsed
+      : travelBalance * 86.85
+    : 0;
+  const penaltyFee = grossRefundHome * 0.025;
+  const netRefund = Math.max(0, grossRefundHome - penaltyFee);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -209,7 +254,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-colors"
+          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -220,18 +265,136 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
             <Plane className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white tracking-tight">Plan Travel Journey</h3>
-            <p className="text-xs text-zinc-400">Request cross-border travel exchange balance</p>
+            <h3 className="text-lg font-bold text-white tracking-tight">Travel Journey Management</h3>
+            <p className="text-xs text-zinc-400">Cross-Border Forex Wallet & Clearance Rail</p>
           </div>
         </div>
 
-        {/* If user has a pending request */}
-        {existingJourney && existingJourney.status === "PENDING" ? (
+        {/* VIEW 1: ACTIVE / APPROVED JOURNEY (With Cancel Journey Option) */}
+        {isApprovedJourney && activeDestCountry ? (
+          <div className="space-y-4 py-2">
+            {/* Active Destination Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#09221b] to-[#041310] border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                  <span>{activeDestCountryObj?.flag || "✈️"}</span>
+                  <span>Active Travel Destination</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40 font-mono">
+                  CLEARANCE ACTIVE
+                </span>
+              </div>
+
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <h4 className="text-xl font-bold text-white">
+                    {activeDestCountryObj?.name || activeDestCountry} ({user?.active_journey_currency || existingJourney?.destination_currency})
+                  </h4>
+                  <p className="text-xs text-zinc-400 font-mono mt-0.5">
+                    Dates: {existingJourney?.start_date || "Current"} to {existingJourney?.end_date || "Active"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-zinc-400 block">Travel Balance</span>
+                  <span className="text-lg font-mono font-black text-cyan-300">
+                    {user?.active_journey_currency || "USD"} {Number(user?.travel_wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* If user clicked Cancel Journey: Show Penalty Breakdown */}
+            {showCancelConfirm ? (
+              <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/30 space-y-3 animate-in fade-in">
+                <div className="flex items-center gap-2 text-rose-400">
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <h4 className="text-sm font-bold text-white">Confirm Journey Cancellation & Bank Refund</h4>
+                </div>
+
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Cancelling this journey will convert your remaining travel balance back to your home currency (
+                  {homeCurrency}) and credit it directly to your primary bank account ({user?.bank_name}).
+                </p>
+
+                {/* Breakdown Table */}
+                <div className="p-3 rounded-xl bg-zinc-950/80 border border-white/[0.08] space-y-2 text-xs font-mono">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Remaining Travel Wallet:</span>
+                    <span className="text-white">
+                      {user?.active_journey_currency} {travelBalance.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Gross Home Currency Value:</span>
+                    <span className="text-white">
+                      {homeCurrency} {grossRefundHome.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-rose-400">
+                    <span>Reconversion Penalty Fee (2.5%):</span>
+                    <span>- {homeCurrency} {penaltyFee.toFixed(2)}</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-white/10 flex justify-between font-bold text-sm">
+                    <span className="text-emerald-400">Net Credited to Bank Account:</span>
+                    <span className="text-emerald-300">
+                      + {homeCurrency} {netRefund.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-zinc-300 transition-colors cursor-pointer"
+                  >
+                    Back / Keep Journey
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isCancelling}
+                    onClick={handleConfirmCancelJourney}
+                    className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isCancelling ? (
+                      <span>Processing Refund...</span>
+                    ) : (
+                      <>
+                        <RefreshCcw className="w-3.5 h-3.5" />
+                        <span>Confirm & Refund Bank</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Normal Active Journey Actions */
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="w-full py-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  <span>Cancel Journey & Refund to Bank (with 2.5% penalty)</span>
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        ) : isPendingJourney ? (
+          /* VIEW 2: PENDING REVIEW JOURNEY */
           <div className="space-y-4 py-3">
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
               <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" />
               <div>
-                <h4 className="text-sm font-bold text-amber-300">Journey Request Pending Review</h4>
+                <h4 className="text-sm font-bold text-amber-300">Journey Request Under Correspondent Review</h4>
                 <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
                   Your travel request to{" "}
                   <span className="font-semibold text-white">
@@ -240,10 +403,10 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
                   </span>{" "}
                   for{" "}
                   <span className="font-mono font-bold text-amber-300">
-                    {existingJourney.destination_currency} {existingJourney.destination_amount_calculated.toLocaleString()}
+                    {existingJourney.destination_currency} {existingJourney.destination_amount_calculated?.toLocaleString()}
                   </span>{" "}
-                  ({existingJourney.home_currency} {existingJourney.home_amount_requested.toLocaleString()}) has been
-                  submitted and is currently being verified by RHI Pay Correspondent Bank authorities.
+                  ({existingJourney.home_currency} {existingJourney.home_amount_requested?.toLocaleString()}) is currently
+                  being reviewed by Correspondent Bank administrators.
                 </p>
               </div>
             </div>
@@ -272,15 +435,25 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-sm font-bold text-zinc-200 transition-colors"
-            >
-              Back to Home
-            </button>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmCancelJourney}
+                disabled={isCancelling}
+                className="flex-1 py-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                {isCancelling ? "Cancelling..." : "Cancel Request"}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-zinc-200 transition-colors cursor-pointer"
+              >
+                Back to Home
+              </button>
+            </div>
           </div>
         ) : (
-          /* Form to Submit New Journey Request */
+          /* VIEW 3: FORM TO SUBMIT NEW JOURNEY REQUEST */
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Step 1: Destination Country */}
             <div>
@@ -315,7 +488,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
 
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-zinc-950/60 p-2 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 block">Home ({homeCurrency})</span>
+                  <span className="text-[10px] text-zinc-400 block">Amount to Spend ({homeCurrency})</span>
                   <input
                     type="number"
                     value={homeAmount}
@@ -330,7 +503,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
                 </div>
 
                 <div className="flex-1 bg-zinc-950/60 p-2 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 block">Destination ({selectedDest.currency})</span>
+                  <span className="text-[10px] text-zinc-400 block">Allocated Travel Wallet ({selectedDest.currency})</span>
                   <p className="text-sm font-bold text-emerald-300 font-mono">{calculatedDestAmount()}</p>
                 </div>
               </div>
@@ -342,7 +515,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
               <select
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
-                className="w-full py-2.5 px-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.1] text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full py-2.5 px-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.1] text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
               >
                 <option value="Tourism & Vacation">🏖️ Tourism & Leisure Vacation</option>
                 <option value="Business Conference & Meetings">💼 Business Meetings & Global Commerce</option>
@@ -410,7 +583,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-98 transition-all disabled:opacity-50"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? (
                   <span>Submitting Request...</span>

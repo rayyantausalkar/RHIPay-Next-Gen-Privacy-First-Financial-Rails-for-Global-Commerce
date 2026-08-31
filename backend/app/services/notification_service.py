@@ -9,7 +9,8 @@ from app.models.notification import (
     NotificationResponse,
     BroadcastNotificationRequest,
 )
-from app.services.auth_service import engine
+from app.core.database import engine
+
 
 
 class NotificationService:

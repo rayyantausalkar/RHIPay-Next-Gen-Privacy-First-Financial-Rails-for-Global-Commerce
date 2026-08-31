@@ -4,8 +4,8 @@ import React from "react";
 import { Home, History, Settings } from "lucide-react";
 
 interface AppBottomNavProps {
-  activeTab: "home" | "history" | "settings" | "admin";
-  onSelectTab: (tab: "home" | "history" | "settings" | "admin") => void;
+  activeTab: "home" | "history" | "settings";
+  onSelectTab: (tab: "home" | "history" | "settings") => void;
 }
 
 export const AppBottomNav: React.FC<AppBottomNavProps> = ({

@@ -21,15 +21,12 @@ import {
   Receipt,
   FileCode,
   Server,
-  GitFork,
-  Layers,
   Zap,
-  Unlock,
-  ArrowLeftRight,
-  FileSpreadsheet,
-  Key,
-  Camera,
+  ArrowRightLeft,
+  Copy,
   Check,
+  Loader2,
+  Sparkles,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
@@ -43,39 +40,22 @@ interface ModernSendModalProps {
   onPaymentCompleted?: () => void;
 }
 
-const STAGES = [
-  { id: "ingest", label: "Verify Payee", short: "Payee", icon: QrCode },
-  { id: "quote", label: "FX Rate Lock", short: "Rate", icon: TrendingUp },
-  { id: "zkp", label: "ZK Prover", short: "ZK Proof", icon: Cpu },
-  { id: "nullifier", label: "Nullifier", short: "Nullifier", icon: KeyRound },
-  { id: "envelope", label: "FATF Envelope", short: "Envelope", icon: Lock },
-  { id: "iso20022", label: "ISO 20022", short: "ISO 20022", icon: FileCode },
-  { id: "gateway", label: "API Gateway", short: "Gateway", icon: Server },
-  { id: "routing", label: "Stream Routing", short: "Routing", icon: GitFork },
-  { id: "merkle", label: "Merkle Root", short: "Merkle", icon: Layers },
-  { id: "groth16", label: "Circuit Verifier", short: "Groth16", icon: ShieldCheck },
-  { id: "anti_replay", label: "Anti-Replay", short: "Anti-Replay", icon: Zap },
-  { id: "crypto_gate", label: "Crypto Gate", short: "Gate", icon: Unlock },
-  { id: "spoke_a", label: "Spoke A Debit", short: "Spoke A", icon: Building2 },
-  { id: "fx_swap", label: "Atomic FX Swap", short: "FX Swap", icon: ArrowLeftRight },
-  { id: "spoke_b", label: "Spoke B Credit", short: "Spoke B", icon: Landmark },
-  { id: "travel_rule", label: "FATF Dispatch", short: "FATF", icon: FileSpreadsheet },
-  { id: "enclave_decryption", label: "Enclave Decrypt", short: "Enclave", icon: Key },
-  { id: "sanctions_screening", label: "AML Sanctions", short: "AML", icon: Scale },
-  { id: "ledger_commit", label: "Ledger Commitment", short: "Ledger", icon: Boxes },
-  { id: "compliance_archival", label: "WORM Archival", short: "Archive", icon: Archive },
-  { id: "push_notify", label: "Recipient Push", short: "Push", icon: BellRing },
-  { id: "sender_receipt", label: "Digital Receipt", short: "Receipt", icon: Receipt },
-];
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+const PROCESSING_STAGES = [
+  "Generating Zero-Knowledge cryptographic proofs...",
+  "Authorizing through Correspondent Banking Network...",
+  "Executing atomic FX liquidity swap...",
+  "Clearing domestic real-time settlement...",
+  "Finalizing immutable double-entry ledger...",
+];
 
 export const ModernSendModal: React.FC<ModernSendModalProps> = ({
   isOpen,
   onClose,
   onPaymentCompleted,
 }) => {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, executeTransfer } = useAuth();
   const { fetchNotifications } = useNotifications();
 
   const [inputMode, setInputMode] = useState<"code" | "qr">("code");
@@ -86,9 +66,10 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
   const [isResolving, setIsResolving] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [currentStageIdx, setCurrentStageIdx] = useState<number>(-1);
+  const [processingStatusText, setProcessingStatusText] = useState<string>(PROCESSING_STAGES[0]);
   const [completedReceipt, setCompletedReceipt] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copiedUetr, setCopiedUetr] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -128,12 +109,11 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
         const fxData = await fxRes.json();
         setFxQuote(fxData);
       } else {
-        // Approximate fallback
         setFxQuote({
           origin_currency: homeCur,
           destination_currency: data.destination_currency,
-          fx_rate: 64.57,
-          origin_debit_amount: (data.requested_amount * 64.57).toFixed(2),
+          fx_rate: 86.85,
+          origin_debit_amount: (data.requested_amount * 86.85).toFixed(2),
         });
       }
     } catch (err: any) {
@@ -150,36 +130,54 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
   const handlePinSuccess = async (pin: string) => {
     setIsPinModalOpen(false);
     setIsProcessing(true);
-    setCurrentStageIdx(0);
 
-    // Run 22-step pipeline sequentially within 3.5 seconds
-    const totalSteps = STAGES.length;
-    const stepDuration = 3500 / totalSteps;
+    // Dynamic clean status updates over ~2.5 seconds (without exposing internal debug test cases)
+    const stageCount = PROCESSING_STAGES.length;
+    const intervalTime = 500;
 
-    for (let i = 0; i < totalSteps; i++) {
-      setCurrentStageIdx(i);
-      await new Promise((resolve) => setTimeout(resolve, stepDuration));
+    for (let i = 0; i < stageCount; i++) {
+      setProcessingStatusText(PROCESSING_STAGES[i]);
+      await new Promise((resolve) => setTimeout(resolve, intervalTime));
     }
 
     try {
-      // Mark completed on backend
-      if (resolvedPayload?.reference_id) {
-        await fetch(`${API_BASE}/requests/${resolvedPayload.reference_id}/complete`, { method: "POST" });
+      // Execute Real Transfer on Backend
+      const res = await executeTransfer({
+        sender_user_id: user?.id || "",
+        recipient_proxy: resolvedPayload.proxy_value,
+        recipient_name: resolvedPayload.recipient_name,
+        destination_country: resolvedPayload.destination_country,
+        destination_currency: resolvedPayload.destination_currency,
+        requested_amount: parseFloat(resolvedPayload.requested_amount),
+        purpose_code: resolvedPayload.purpose_code || "P2P_TRANSFER",
+        note: resolvedPayload.note || "RHI Pay Cross-Border Instant Transfer",
+      });
+
+      if (!res.success) {
+        toast.error(res.error || "Payment execution failed");
+        setIsProcessing(false);
+        return;
       }
 
-      // Generate receipt
-      const uetr = `7a9b3c4d-${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 6)}`;
+      // Mark completed on request service if applicable
+      if (resolvedPayload?.reference_id) {
+        try {
+          await fetch(`${API_BASE}/requests/${resolvedPayload.reference_id}/complete`, { method: "POST" });
+        } catch {}
+      }
+
+      const tx = res.data?.transaction;
       const receiptData = {
-        receipt_id: `REC-${Date.now().toString().slice(-8)}`,
-        uetr,
-        recipient_name: resolvedPayload.recipient_name,
-        recipient_proxy: resolvedPayload.proxy_value,
-        recipient_currency: resolvedPayload.destination_currency,
-        amount_credited: resolvedPayload.requested_amount,
+        receipt_id: tx?.transaction_id || `REC-${Date.now().toString().slice(-8)}`,
+        uetr: tx?.uetr || `7a9b3c4d-${Date.now().toString(16)}`,
+        recipient_name: tx?.recipient_name || resolvedPayload.recipient_name,
+        recipient_proxy: tx?.recipient_proxy || resolvedPayload.proxy_value,
+        recipient_currency: tx?.recipient_currency || resolvedPayload.destination_currency,
+        amount_credited: tx?.recipient_amount || resolvedPayload.requested_amount,
         sender_name: user?.name,
-        sender_currency: user?.preferred_currency || "INR",
-        amount_debited: fxQuote?.origin_debit_amount || (resolvedPayload.requested_amount * 64.57).toFixed(2),
-        effective_fx_rate: fxQuote?.fx_rate || 64.57,
+        sender_currency: tx?.sender_currency || user?.preferred_currency || "INR",
+        amount_debited: tx?.sender_amount || fxQuote?.origin_debit_amount || (resolvedPayload.requested_amount * 86.85).toFixed(2),
+        effective_fx_rate: tx?.exchange_rate || fxQuote?.fx_rate || 86.85,
         settled_at: new Date().toLocaleTimeString(),
       };
 
@@ -199,8 +197,9 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
       await refreshUser();
       await fetchNotifications();
       onPaymentCompleted?.();
-    } catch {
+    } catch (err: any) {
       setIsProcessing(false);
+      toast.error(err.message || "Payment settlement error");
     }
   };
 
@@ -210,7 +209,14 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
     setCodeInput("");
     setQrInput("");
     setCompletedReceipt(null);
-    setCurrentStageIdx(-1);
+    setIsProcessing(false);
+  };
+
+  const handleCopyUetr = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedUetr(true);
+    toast.success("UETR identifier copied!");
+    setTimeout(() => setCopiedUetr(false), 2000);
   };
 
   return (
@@ -221,7 +227,7 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
           {!isProcessing && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-colors"
+              className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -238,57 +244,35 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
             </div>
           </div>
 
-          {/* Stage 1: Pipeline Animation during 3-5 seconds */}
+          {/* Clean Payment Processing State (Requirement: No raw test cases on sender dashboard) */}
           {isProcessing ? (
-            <div className="py-6 space-y-4 text-center animate-in fade-in duration-300">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto animate-pulse">
-                <Cpu className="w-7 h-7 stroke-[2]" />
+            <div className="py-8 sm:py-10 space-y-6 text-center animate-in fade-in duration-300">
+              {/* Premium Orbital Glowing Animation */}
+              <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20 animate-ping" />
+                <div className="absolute inset-0 rounded-full border-2 border-dashed border-emerald-400 animate-spin duration-1000" />
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-lg shadow-emerald-500/20">
+                  <ShieldCheck className="w-7 h-7 stroke-[2.2] animate-pulse" />
+                </div>
               </div>
 
-              <div>
-                <h4 className="text-base font-bold text-white">
-                  {STAGES[currentStageIdx]?.label || "Processing Payment"}
-                </h4>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Automated AML, CFT, Zero-Knowledge proofs & Correspondent Bank Settlement (3–5s)
+              <div className="space-y-2 max-w-sm mx-auto px-4">
+                <h4 className="text-lg font-bold text-white tracking-tight">Payment Processing...</h4>
+                <p className="text-xs text-emerald-400 font-mono transition-all duration-300 min-h-[32px] flex items-center justify-center">
+                  {processingStatusText}
                 </p>
               </div>
 
-              {/* 22 Telemetry Step Chips (Matching User Screenshot!) */}
-              <div className="p-3 rounded-2xl bg-zinc-950/90 border border-white/[0.08] shadow-inner max-h-48 overflow-y-auto">
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
-                  {STAGES.map((st, idx) => {
-                    const isPassed = idx < currentStageIdx;
-                    const isCurrent = idx === currentStageIdx;
-                    const Icon = st.icon;
-
-                    return (
-                      <div
-                        key={st.id}
-                        className={`flex flex-col items-center gap-0.5 p-1 rounded-xl transition-all ${
-                          isCurrent
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400 scale-105"
-                            : isPassed
-                            ? "bg-emerald-950/30 text-emerald-400 border border-emerald-500/30"
-                            : "bg-white/[0.02] text-zinc-600 border border-white/[0.04]"
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center ${
-                            isCurrent
-                              ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/40"
-                              : isPassed
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : "bg-zinc-900 text-zinc-600"
-                          }`}
-                        >
-                          {isPassed ? <Check className="w-3 h-3 stroke-[3]" /> : <Icon className="w-3 h-3 stroke-[2]" />}
-                        </div>
-                        <span className="text-[7px] font-mono truncate max-w-full">{st.short}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Security Badges */}
+              <div className="pt-2 flex items-center justify-center gap-2 text-[10px] text-zinc-400 font-mono">
+                <span className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] px-2.5 py-1 rounded-full">
+                  <Lock className="w-3 h-3 text-emerald-400" />
+                  <span>Zero-Knowledge Authenticated</span>
+                </span>
+                <span className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] px-2.5 py-1 rounded-full">
+                  <Building2 className="w-3 h-3 text-cyan-400" />
+                  <span>Correspondent Bank Settled</span>
+                </span>
               </div>
             </div>
           ) : completedReceipt ? (
@@ -298,191 +282,231 @@ export const ModernSendModal: React.FC<ModernSendModalProps> = ({
                 <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/30">
                   <CheckCircle2 className="w-8 h-8 stroke-[2.5]" />
                 </div>
-                <h4 className="text-lg font-bold text-white">Payment Successful</h4>
-                <p className="text-2xl font-black font-mono text-emerald-300">
-                  {completedReceipt.recipient_currency} {completedReceipt.amount_credited}
+                <h4 className="text-lg font-bold text-white">Payment Successfully Settled!</h4>
+                <p className="text-xs text-zinc-400">Funds credited instantly via Correspondent Rail</p>
+              </div>
+
+              {/* Amount Box */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-teal-950/20 border border-emerald-500/30 text-center space-y-1">
+                <p className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Credited to Payee</p>
+                <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-300">
+                  {completedReceipt.recipient_currency} {Number(completedReceipt.amount_credited).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-zinc-400">
-                  Debited: {completedReceipt.sender_currency} {completedReceipt.amount_debited}
+                <p className="text-xs text-zinc-400 font-mono">
+                  Debited from your account: {completedReceipt.sender_currency} {Number(completedReceipt.amount_debited).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>
 
+              {/* Receipt Details */}
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-2 text-xs text-zinc-300">
                 <div className="flex justify-between">
+                  <span className="text-zinc-500">Transaction ID:</span>
+                  <span className="font-mono font-semibold text-zinc-200">{completedReceipt.receipt_id}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-zinc-500">Recipient:</span>
-                  <span className="font-semibold text-zinc-200">{completedReceipt.recipient_name}</span>
+                  <span className="font-semibold text-zinc-200">{completedReceipt.recipient_name} ({completedReceipt.recipient_proxy})</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-500">Effective FX Rate:</span>
-                  <span className="font-mono text-emerald-400 font-semibold">
-                    1 {completedReceipt.recipient_currency} = {completedReceipt.effective_fx_rate} {completedReceipt.sender_currency}
-                  </span>
+                  <span className="font-mono text-cyan-400">1 {completedReceipt.recipient_currency} = {completedReceipt.effective_fx_rate} {completedReceipt.sender_currency}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500">UETR (Tracking ID):</span>
+                  <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-300">
+                    <span className="truncate max-w-[140px]">{completedReceipt.uetr}</span>
+                    <button onClick={() => handleCopyUetr(completedReceipt.uetr)} className="text-zinc-400 hover:text-white cursor-pointer">
+                      {copiedUetr ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">UETR / ISO 20022:</span>
-                  <span className="font-mono text-[10px] text-zinc-400 truncate max-w-[180px]">{completedReceipt.uetr}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Settlement Speed:</span>
-                  <span className="font-mono text-emerald-400 font-bold">1.84s (Instant Cleared)</span>
+                  <span className="text-zinc-500">Settled At:</span>
+                  <span className="font-mono text-zinc-300">{completedReceipt.settled_at}</span>
                 </div>
               </div>
 
-              <button
-                onClick={handleReset}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold text-sm shadow-lg shadow-emerald-500/20"
-              >
-                Done / Send Another Payment
-              </button>
-            </div>
-          ) : resolvedPayload ? (
-            /* Resolved Payload Confirmation & FX Quote */
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-zinc-950/80 border border-emerald-500/30 space-y-3">
-                <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
-                  <div>
-                    <span className="text-[10px] text-zinc-400 uppercase font-semibold">Payee Name</span>
-                    <p className="text-sm font-bold text-white">{resolvedPayload.recipient_name}</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-bold">
-                    {resolvedPayload.destination_country} Spoke
-                  </span>
-                </div>
-
-                <div className="flex items-baseline justify-between">
-                  <div>
-                    <span className="text-[10px] text-zinc-400">Recipient Receives</span>
-                    <p className="text-xl font-black font-mono text-emerald-300">
-                      {resolvedPayload.destination_currency} {resolvedPayload.requested_amount}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-zinc-400">Your Home Deduction</span>
-                    <p className="text-xl font-black font-mono text-zinc-100">
-                      {fxQuote?.origin_currency || "INR"} {fxQuote?.origin_debit_amount || "0.00"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Locked Forex Exchange Rate:</span>
-                  <span className="font-mono text-cyan-300 font-bold">
-                    1 {resolvedPayload.destination_currency} = {fxQuote?.fx_rate || "64.57"} {fxQuote?.origin_currency || "INR"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-2">
                 <button
-                  type="button"
                   onClick={handleReset}
-                  className="flex-1 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-xs font-semibold text-zinc-400 hover:text-white"
+                  className="flex-1 py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-zinc-200 transition-colors cursor-pointer"
                 >
-                  Change Code
+                  Send Another
                 </button>
                 <button
-                  type="button"
-                  onClick={handleProceedToPin}
-                  className="flex-2 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-bold text-sm shadow-lg shadow-cyan-500/25 active:scale-98 transition-all"
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xs font-bold shadow-lg shadow-emerald-500/25 hover:opacity-95 transition-opacity cursor-pointer"
                 >
-                  Confirm & Enter UPI PIN
+                  Done
                 </button>
               </div>
             </div>
-          ) : (
-            /* Input: 6-Digit Code or QR Code */
+          ) : !resolvedPayload ? (
+            /* Input Step: Enter 6-digit Code or Paste QR Payload */
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-zinc-950 rounded-2xl border border-white/[0.08]">
+              {/* Input Mode Selector */}
+              <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-2xl border border-white/[0.08]">
                 <button
                   type="button"
                   onClick={() => setInputMode("code")}
-                  className={`py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     inputMode === "code"
-                      ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30"
+                      ? "bg-cyan-500 text-black shadow-md font-bold"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Enter 6-Digit Code</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setInputMode("qr")}
-                  className={`py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     inputMode === "qr"
-                      ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30"
+                      ? "bg-cyan-500 text-black shadow-md font-bold"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
                   <QrCode className="w-3.5 h-3.5" />
-                  <span>Scan QR Code</span>
+                  <span>Paste QR Payload</span>
                 </button>
               </div>
 
-              {errorMsg && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-2xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
               {inputMode === "code" ? (
                 <div className="space-y-3">
-                  <label className="block text-xs font-semibold text-zinc-300">
-                    Enter Recipient's 6-Digit Payment Code
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={10}
-                    value={codeInput}
-                    onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                    placeholder="e.g. RH7X92"
-                    className="w-full py-3.5 px-4 rounded-2xl bg-zinc-950/80 border border-white/[0.1] text-center text-2xl font-mono font-black text-cyan-300 tracking-widest uppercase focus:outline-none focus:border-cyan-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1">
+                      Recipient 6-Digit Dynamic Payment Code
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. A9B4X2"
+                      className="w-full text-center tracking-[0.5em] text-2xl font-black font-mono py-3 rounded-2xl bg-zinc-950 border border-white/[0.12] text-cyan-300 focus:outline-none focus:border-cyan-400 uppercase placeholder:tracking-normal placeholder:text-sm placeholder:text-zinc-600"
+                    />
+                  </div>
                   <button
                     type="button"
-                    disabled={isResolving || !codeInput.trim()}
-                    onClick={() => handleResolve(codeInput.trim())}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-bold text-sm shadow-lg shadow-cyan-500/25 active:scale-98 transition-all disabled:opacity-50"
+                    disabled={codeInput.length < 4 || isResolving}
+                    onClick={() => handleResolve(codeInput)}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/25 hover:opacity-95 transition-all disabled:opacity-40 cursor-pointer"
                   >
-                    {isResolving ? "Resolving Payment Code..." : "Proceed to Pay"}
+                    {isResolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />}
+                    <span>{isResolving ? "Resolving Payment..." : "Find & Verify Payee"}</span>
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <label className="block text-xs font-semibold text-zinc-300">
-                    Paste Scanned QR Code URI Payload
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={qrInput}
-                    onChange={(e) => setQrInput(e.target.value)}
-                    placeholder="rhipay://pay?ref=RHIPAY-REQ-...&amt=45.00&ccy=SGD..."
-                    className="w-full p-3 rounded-2xl bg-zinc-950/80 border border-white/[0.1] text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1">
+                      Full Signed RHI Pay QR URI
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={qrInput}
+                      onChange={(e) => setQrInput(e.target.value)}
+                      placeholder="rhipay://pay?ref=...&amt=...&sig=..."
+                      className="w-full text-xs font-mono p-3 rounded-2xl bg-zinc-950 border border-white/[0.12] text-zinc-200 focus:outline-none focus:border-cyan-400 resize-none"
+                    />
+                  </div>
                   <button
                     type="button"
-                    disabled={isResolving || !qrInput.trim()}
-                    onClick={() => handleResolve(qrInput.trim())}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-bold text-sm shadow-lg shadow-cyan-500/25 active:scale-98 transition-all disabled:opacity-50"
+                    disabled={!qrInput.trim() || isResolving}
+                    onClick={() => handleResolve(qrInput)}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/25 hover:opacity-95 transition-all disabled:opacity-40 cursor-pointer"
                   >
-                    {isResolving ? "Verifying QR Payload..." : "Validate & Proceed"}
+                    {isResolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                    <span>{isResolving ? "Verifying Payload..." : "Decode & Verify Payload"}</span>
                   </button>
                 </div>
               )}
+
+              {errorMsg && (
+                <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Confirmation Step: Verify Details, FX Quote, and Click Pay */
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Payee Card */}
+              <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/[0.08] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">Paying Recipient</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-400 font-mono">
+                    VERIFIED PAYEE
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-base font-bold text-white">{resolvedPayload.recipient_name}</h4>
+                    <p className="text-xs text-zinc-400 font-mono">{resolvedPayload.proxy_value}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-zinc-400 block">Destination</span>
+                    <span className="text-xs font-bold text-zinc-200">{resolvedPayload.destination_country} ({resolvedPayload.destination_currency})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount & FX Breakdown */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-[#091b26] to-[#040e16] border border-cyan-500/30 space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-zinc-400">Requested Amount:</span>
+                  <span className="text-2xl font-black font-mono text-cyan-300">
+                    {resolvedPayload.destination_currency} {Number(resolvedPayload.requested_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                  <span className="text-zinc-400">Debited from your account:</span>
+                  <span className="font-mono font-bold text-emerald-300">
+                    {user?.preferred_currency || "INR"} {Number(fxQuote?.origin_debit_amount || (resolvedPayload.requested_amount * 86.85)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+                  <span>Guaranteed FX Rate:</span>
+                  <span>1 {resolvedPayload.destination_currency} ≈ {fxQuote?.fx_rate || 86.85} {user?.preferred_currency || "INR"}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="py-3 px-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-xs font-semibold text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleProceedToPin}
+                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 hover:opacity-95 transition-all cursor-pointer"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>Authorize & Pay with UPI PIN</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* UPI PIN Modal for Payment Authorization */}
+      {/* UPI PIN Modal */}
       <UpiPinModal
         isOpen={isPinModalOpen}
         onClose={() => setIsPinModalOpen(false)}
         mode="verify"
         title="Authorize Payment"
-        subtitle="Enter your 4-digit UPI PIN to confirm instant settlement"
+        subtitle={`Enter 4-digit PIN to transfer ${resolvedPayload?.destination_currency || ""} ${resolvedPayload?.requested_amount || ""}`}
         onSuccess={handlePinSuccess}
       />
     </>

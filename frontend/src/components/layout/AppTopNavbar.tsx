@@ -16,8 +16,8 @@ import { NotificationDrawer } from "../modals/NotificationDrawer";
 import { UserProfileModal } from "../modals/UserProfileModal";
 
 interface AppTopNavbarProps {
-  activeTab: "home" | "history" | "settings" | "admin";
-  onSelectTab: (tab: "home" | "history" | "settings" | "admin") => void;
+  activeTab: "home" | "history" | "settings" | "admin" | string;
+  onSelectTab: (tab: any) => void;
   onNavigateToJourney?: () => void;
 }
 

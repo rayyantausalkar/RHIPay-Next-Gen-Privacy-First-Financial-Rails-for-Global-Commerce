@@ -24,7 +24,7 @@ export default function AppPage() {
   const router = useRouter();
   const { user, logout, refreshUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings" | "admin">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings">("home");
   const [isSendOpen, setIsSendOpen] = useState<boolean>(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState<boolean>(false);
   const [isJourneyOpen, setIsJourneyOpen] = useState<boolean>(false);
@@ -61,6 +61,14 @@ export default function AppPage() {
     toast.info("Logged out of RHI Pay");
     router.push("/login");
   };
+
+  // Requirement: Admin must NOT see normal consumer options (Send/Receive/User Home/Dock).
+  // Admin sees ONLY the pure Correspondent Bank Admin Dashboard!
+  const isAdmin = user?.role === "ADMIN" || user?.email?.toLowerCase().includes("admin");
+
+  if (isAdmin) {
+    return <CorrespondentBankAdminDashboard onLogout={handleLogout} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#040D14] text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-200 pb-24 sm:pb-28">
@@ -106,9 +114,6 @@ export default function AppPage() {
 
         {/* VIEW 3: SETTINGS (Security, Notifications, Guides, Logout) */}
         {activeTab === "settings" && <SettingsView onLogout={handleLogout} />}
-
-        {/* VIEW 4: ADMIN / CORRESPONDENT BANK CONTROL ROOM */}
-        {activeTab === "admin" && <CorrespondentBankAdminDashboard />}
       </main>
 
       {/* 3. Bottom Sticky Navigation Dock (Home, History, Settings) */}
@@ -118,7 +123,7 @@ export default function AppPage() {
       />
 
       {/* 4. Modals */}
-      {/* Send Money Modal (QR Scan / 6-Digit Code, FX Quote, UPI PIN, 3-5s Telemetry) */}
+      {/* Send Money Modal (QR Scan / 6-Digit Code, FX Quote, UPI PIN, Clean Processing) */}
       <ModernSendModal
         isOpen={isSendOpen}
         onClose={() => setIsSendOpen(false)}

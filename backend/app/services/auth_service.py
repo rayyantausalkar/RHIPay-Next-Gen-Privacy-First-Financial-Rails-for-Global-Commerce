@@ -23,20 +23,19 @@ from app.models.auth import (
 )
 from app.models.journey import JourneyRequestRecord
 from app.models.notification import NotificationRecord
-from app.services.spoke_service import spoke_service
-
-
-# Database setup: SQLite database stored locally in backend/data/users.db
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "users.db")
-DATABASE_URL = f"sqlite:///{DB_PATH}"
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False
+from app.models.transaction import (
+    TransactionRecord,
+    TransactionResponse,
+    TransferExecuteRequest,
+    TransferExecuteResponse,
 )
+from app.services.spoke_service import spoke_service
+from app.services.fx_service import fx_service
+from app.services.notification_service import notification_service
+
+
+from app.core.database import engine, DB_DIR, DB_PATH, DATABASE_URL
+
 
 
 class AuthService:
@@ -542,6 +541,174 @@ class AuthService:
                 "message": f"User account has been {status_text}.",
             }
 
+    def execute_atomic_transfer(self, req: TransferExecuteRequest) -> TransferExecuteResponse:
+        """
+        Executes atomic cross-border P2P transfer with:
+        1. Correct debit from sender's active travel wallet (or home wallet)
+        2. Credit to recipient's account balance
+        3. Real database record in transactions table
+        4. Push notifications to both participants
+        """
+        with Session(engine) as session:
+            sender = session.exec(
+                select(UserRecord).where(UserRecord.user_id == req.sender_user_id)
+            ).first()
+            if not sender:
+                raise ValueError(f"Sender account {req.sender_user_id} not found.")
+
+            if sender.is_blocked:
+                raise ValueError("Sender account is currently blocked by banking authority.")
+
+            # Look up recipient in DB by proxy, contact, email or user_id
+            clean_proxy = req.recipient_proxy.strip().lower()
+            recipient = session.exec(
+                select(UserRecord).where(
+                    (UserRecord.proxy_value == req.recipient_proxy)
+                    | (UserRecord.contact_number == req.recipient_proxy)
+                    | (UserRecord.email == clean_proxy)
+                    | (UserRecord.user_id == req.recipient_proxy)
+                    | (UserRecord.name == req.recipient_name)
+                )
+            ).first()
+
+            sender_cur = sender.preferred_currency or "USD"
+            dest_cur = req.destination_currency.upper()
+            dest_amt = float(req.requested_amount)
+
+            # Determine FX rate
+            fx_rate, inverse_rate = fx_service.get_exchange_rate(sender_cur, dest_cur)
+            # fx_rate is units of sender_cur per 1 unit of dest_cur (e.g. 86.85 INR per 1 USD)
+            home_debit_worth = round(dest_amt * float(fx_rate), 2)
+
+            # Check if sender is currently on an active journey to recipient's destination
+            is_active_journey_match = (
+                sender.active_journey_country == req.destination_country
+                or sender.active_journey_currency == dest_cur
+            )
+
+            # Deduct from sender's primary account balance (Home Vault)
+            # The sender's balance must be deducted by the home currency worth of the sent amount (e.g. INR worth of $45)
+            if sender.wallet_balance >= home_debit_worth:
+                sender.wallet_balance = round(sender.wallet_balance - home_debit_worth, 2)
+            elif sender.travel_wallet_balance >= dest_amt:
+                sender.travel_wallet_balance = round(sender.travel_wallet_balance - dest_amt, 2)
+            elif (sender.wallet_balance + (sender.travel_wallet_balance * float(fx_rate))) >= home_debit_worth:
+                travel_home_val = sender.travel_wallet_balance * float(fx_rate)
+                remaining_needed_home = home_debit_worth - travel_home_val
+                sender.travel_wallet_balance = 0.0
+                sender.wallet_balance = round(sender.wallet_balance - remaining_needed_home, 2)
+            else:
+                raise ValueError(
+                    f"Insufficient funds: Balance requires {sender_cur} {home_debit_worth:,.2f} "
+                    f"({dest_cur} {dest_amt:,.2f}), but available balance is insufficient."
+                )
+
+            session.add(sender)
+
+            # Credit recipient if registered in system
+            rec_id = None
+            rec_acct = f"{req.destination_country}882910"
+            if recipient:
+                rec_id = recipient.user_id
+                rec_acct = recipient.account_number
+                # If recipient prefers dest_cur, credit dest_amt, else convert
+                if recipient.preferred_currency == dest_cur:
+                    recipient.wallet_balance = round(recipient.wallet_balance + dest_amt, 2)
+                else:
+                    _, rec_inv = fx_service.get_exchange_rate(dest_cur, recipient.preferred_currency)
+                    rec_credit = round(dest_amt * float(rec_inv), 2)
+                    recipient.wallet_balance = round(recipient.wallet_balance + rec_credit, 2)
+                session.add(recipient)
+
+            # Generate real transaction record
+            now = datetime.now(timezone.utc)
+            tx_id = f"TX-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+            uetr_id = str(uuid.uuid4())
+
+            tx_record = TransactionRecord(
+                transaction_id=tx_id,
+                uetr=uetr_id,
+                sender_user_id=sender.user_id,
+                sender_name=sender.name,
+                sender_proxy=sender.proxy_value,
+                sender_country=sender.home_country,
+                sender_currency=sender_cur,
+                sender_amount=home_debit_worth,
+                sender_account_number=sender.account_number,
+                recipient_user_id=rec_id,
+                recipient_name=recipient.name if recipient else req.recipient_name,
+                recipient_proxy=req.recipient_proxy,
+                recipient_country=req.destination_country,
+                recipient_currency=dest_cur,
+                recipient_amount=dest_amt,
+                recipient_account_number=rec_acct,
+                exchange_rate=float(fx_rate),
+                purpose_code=req.purpose_code or "P2P_TRANSFER",
+                status="SETTLED",
+                category="TRANSFER",
+                iso_status="ACCP_SETTLED_FUNDS_AVAILABLE",
+                note=req.note,
+                created_at=now,
+            )
+            session.add(tx_record)
+            session.commit()
+            session.refresh(sender)
+            if recipient:
+                session.refresh(recipient)
+            session.refresh(tx_record)
+
+            # Send push notifications
+            notification_service.create_notification(
+                user_id=sender.user_id,
+                title="✅ Payment Sent Successfully",
+                message=f"Sent {dest_cur} {dest_amt:,.2f} ({sender_cur} {home_debit_worth:,.2f}) to {req.recipient_name} via RHI Pay Nexus settlement.",
+                notif_type="PAYMENT_SENT",
+            )
+
+            if recipient:
+                notification_service.create_notification(
+                    user_id=recipient.user_id,
+                    title="💵 Payment Received!",
+                    message=f"You received {dest_cur} {dest_amt:,.2f} from {sender.name} ({sender.proxy_value}). Funds cleared in your bank account.",
+                    notif_type="PAYMENT_RECEIVED",
+                )
+
+            tx_res = TransactionResponse(
+                id=tx_record.id,
+                transaction_id=tx_record.transaction_id,
+                uetr=tx_record.uetr,
+                sender_user_id=tx_record.sender_user_id,
+                sender_name=tx_record.sender_name,
+                sender_proxy=tx_record.sender_proxy,
+                sender_country=tx_record.sender_country,
+                sender_currency=tx_record.sender_currency,
+                sender_amount=tx_record.sender_amount,
+                sender_account_number=tx_record.sender_account_number,
+                recipient_user_id=tx_record.recipient_user_id,
+                recipient_name=tx_record.recipient_name,
+                recipient_proxy=tx_record.recipient_proxy,
+                recipient_country=tx_record.recipient_country,
+                recipient_currency=tx_record.recipient_currency,
+                recipient_amount=tx_record.recipient_amount,
+                recipient_account_number=tx_record.recipient_account_number,
+                exchange_rate=tx_record.exchange_rate,
+                purpose_code=tx_record.purpose_code,
+                status=tx_record.status,
+                category=tx_record.category,
+                iso_status=tx_record.iso_status,
+                note=tx_record.note,
+                created_at=tx_record.created_at,
+            )
+
+            return TransferExecuteResponse(
+                success=True,
+                transaction=tx_res,
+                sender_wallet_balance=sender.wallet_balance,
+                sender_travel_wallet_balance=sender.travel_wallet_balance,
+                recipient_wallet_balance=recipient.wallet_balance if recipient else 0.0,
+                message=f"Settled {dest_cur} {dest_amt:,.2f} atomically to {req.recipient_name}.",
+            )
+
     def process_payment_transfer(
         self,
         sender_proxy: str,
@@ -585,6 +752,7 @@ class AuthService:
                 "sender_balance_after": sender.wallet_balance if sender else 0.0,
                 "recipient_balance_after": recipient.wallet_balance if recipient else 0.0,
             }
+
 
     def get_user_by_email(self, email: str) -> Optional[UserProfileResponse]:
         """Fetch user profile by email."""

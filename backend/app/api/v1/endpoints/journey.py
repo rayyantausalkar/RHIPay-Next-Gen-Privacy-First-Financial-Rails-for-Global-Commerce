@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
 from app.models.journey import (
     JourneyCreateRequest,
@@ -6,6 +6,7 @@ from app.models.journey import (
     JourneyApproveRequest,
     JourneyRejectRequest,
 )
+from app.models.transaction import JourneyCancelRequest, JourneyCancelResponse
 from app.services.journey_service import journey_service
 
 router = APIRouter()
@@ -41,6 +42,22 @@ def get_user_journey(user_id: str):
             detail="No journey requests found for this user",
         )
     return record
+
+
+@router.post(
+    "/user/{user_id}/cancel",
+    response_model=JourneyCancelResponse,
+    summary="Cancel Active Journey and Refund Balance with 2.5% Penalty Fee",
+)
+def cancel_user_journey(user_id: str, payload: Optional[JourneyCancelRequest] = None):
+    try:
+        reason = payload.cancellation_reason if payload else "Cancelled by user"
+        return journey_service.cancel_journey(user_id=user_id, reason=reason)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
 
 @router.get(
@@ -80,3 +97,4 @@ def reject_journey_request(request_id: str, reject_data: JourneyRejectRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+

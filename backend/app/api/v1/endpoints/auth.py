@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Header
+from fastapi import APIRouter, HTTPException, status, Header, Query
 from typing import Optional, List
 from app.models.auth import (
     UserSignupRequest,
@@ -12,7 +12,13 @@ from app.models.auth import (
     BalanceCheckResponse,
     AdminUserManagementItem,
 )
+from app.models.transaction import (
+    TransferExecuteRequest,
+    TransferExecuteResponse,
+    TransactionResponse,
+)
 from app.services.auth_service import auth_service
+from app.services.transaction_service import transaction_service
 
 router = APIRouter()
 
@@ -145,6 +151,102 @@ def check_balance(req: BalanceCheckRequest):
         )
 
 
+@router.post(
+    "/transfer/execute",
+    response_model=TransferExecuteResponse,
+    summary="Execute Real Atomic Cross-Border Transfer with Balance Deduction",
+)
+def execute_transfer(req: TransferExecuteRequest):
+    try:
+        return auth_service.execute_atomic_transfer(req)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Transfer execution failed: {str(e)}",
+        )
+
+
+@router.get(
+    "/transactions/user/{user_id}",
+    response_model=List[TransactionResponse],
+    summary="Get Real Transaction History for Authenticated User",
+)
+def get_user_transactions(user_id: str, limit: int = Query(50, ge=1, le=100)):
+    records = transaction_service.get_user_transactions(user_id, limit=limit)
+    return [
+        TransactionResponse(
+            id=r.id,
+            transaction_id=r.transaction_id,
+            uetr=r.uetr,
+            sender_user_id=r.sender_user_id,
+            sender_name=r.sender_name,
+            sender_proxy=r.sender_proxy,
+            sender_country=r.sender_country,
+            sender_currency=r.sender_currency,
+            sender_amount=r.sender_amount,
+            sender_account_number=r.sender_account_number,
+            recipient_user_id=r.recipient_user_id,
+            recipient_name=r.recipient_name,
+            recipient_proxy=r.recipient_proxy,
+            recipient_country=r.recipient_country,
+            recipient_currency=r.recipient_currency,
+            recipient_amount=r.recipient_amount,
+            recipient_account_number=r.recipient_account_number,
+            exchange_rate=r.exchange_rate,
+            purpose_code=r.purpose_code,
+            status=r.status,
+            category=r.category,
+            iso_status=r.iso_status,
+            note=r.note,
+            created_at=r.created_at,
+        )
+        for r in records
+    ]
+
+
+@router.get(
+    "/transactions/all",
+    response_model=List[TransactionResponse],
+    summary="Admin / Correspondent Bank: Get all system transactions in real time",
+)
+def get_all_transactions(limit: int = Query(100, ge=1, le=200)):
+    records = transaction_service.get_all_transactions(limit=limit)
+    return [
+        TransactionResponse(
+            id=r.id,
+            transaction_id=r.transaction_id,
+            uetr=r.uetr,
+            sender_user_id=r.sender_user_id,
+            sender_name=r.sender_name,
+            sender_proxy=r.sender_proxy,
+            sender_country=r.sender_country,
+            sender_currency=r.sender_currency,
+            sender_amount=r.sender_amount,
+            sender_account_number=r.sender_account_number,
+            recipient_user_id=r.recipient_user_id,
+            recipient_name=r.recipient_name,
+            recipient_proxy=r.recipient_proxy,
+            recipient_country=r.recipient_country,
+            recipient_currency=r.recipient_currency,
+            recipient_amount=r.recipient_amount,
+            recipient_account_number=r.recipient_account_number,
+            exchange_rate=r.exchange_rate,
+            purpose_code=r.purpose_code,
+            status=r.status,
+            category=r.category,
+            iso_status=r.iso_status,
+            note=r.note,
+            created_at=r.created_at,
+        )
+        for r in records
+    ]
+
+
 @router.get(
     "/users",
     response_model=List[AdminUserManagementItem],
@@ -174,3 +276,4 @@ def toggle_block_user(user_id: str):
 )
 def logout():
     return {"status": "success", "message": "Successfully logged out of RHI Pay Nexus."}
+

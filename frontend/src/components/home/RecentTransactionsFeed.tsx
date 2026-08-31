@@ -1,72 +1,27 @@
 "use client";
 
-import React from "react";
-import { ArrowUpRight, ArrowDownLeft, ArrowRight, Clock, CheckCircle2, ShieldCheck } from "lucide-react";
-
-export interface TransactionItem {
-  id: string;
-  type: "sent" | "received";
-  counterpartyName: string;
-  counterpartyProxy: string;
-  counterpartyCountry: string;
-  homeAmount: number;
-  homeCurrency: string;
-  foreignAmount: number;
-  foreignCurrency: string;
-  status: "SETTLED" | "PROCESSING" | "FAILED";
-  timestamp: string;
-  uetr: string;
-}
+import React, { useState, useEffect } from "react";
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  ArrowRight,
+  Clock,
+  CheckCircle2,
+  ShieldCheck,
+  Plane,
+  RefreshCcw,
+  Receipt,
+  X,
+  Copy,
+  Check,
+} from "lucide-react";
+import { toast } from "sonner";
+import { useAuth, TransactionItem } from "@/context/AuthContext";
 
 interface RecentTransactionsFeedProps {
   onSeeAll: () => void;
   onSelectTransaction?: (tx: TransactionItem) => void;
 }
-
-export const SAMPLE_RECENT_TRANSACTIONS: TransactionItem[] = [
-  {
-    id: "TX-20260831-9812",
-    type: "received",
-    counterpartyName: "Tan Wei Ling",
-    counterpartyProxy: "+6591234567",
-    counterpartyCountry: "SG",
-    homeAmount: 2835.0,
-    homeCurrency: "INR",
-    foreignAmount: 45.0,
-    foreignCurrency: "SGD",
-    status: "SETTLED",
-    timestamp: "10:42 AM",
-    uetr: "7a9b3c4d-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
-  },
-  {
-    id: "TX-20260831-4821",
-    type: "sent",
-    counterpartyName: "Marcus Vance",
-    counterpartyProxy: "+14155552671",
-    counterpartyCountry: "US",
-    homeAmount: 4342.5,
-    homeCurrency: "INR",
-    foreignAmount: 50.0,
-    foreignCurrency: "USD",
-    status: "SETTLED",
-    timestamp: "Yesterday",
-    uetr: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-  },
-  {
-    id: "TX-20260830-1092",
-    type: "received",
-    counterpartyName: "Hiroshi Tanaka",
-    counterpartyProxy: "+819012345678",
-    counterpartyCountry: "JP",
-    homeAmount: 5669.0,
-    homeCurrency: "INR",
-    foreignAmount: 10000.0,
-    foreignCurrency: "JPY",
-    status: "SETTLED",
-    timestamp: "Aug 29",
-    uetr: "9f8e7d6c-5b4a-3a2b-1c0d-9e8f7a6b5c4d",
-  },
-];
 
 const COUNTRY_FLAGS: Record<string, string> = {
   SG: "🇸🇬",
@@ -87,85 +42,234 @@ export const RecentTransactionsFeed: React.FC<RecentTransactionsFeedProps> = ({
   onSeeAll,
   onSelectTransaction,
 }) => {
+  const { user, getUserTransactions } = useAuth();
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
+  const [copiedUetr, setCopiedUetr] = useState<boolean>(false);
+
+  const fetchTransactions = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const data = await getUserTransactions(user.id);
+      setTransactions(data);
+    } catch {
+      // safe fallback
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [user]);
+
+  const handleCopyUetr = (uetr: string) => {
+    navigator.clipboard.writeText(uetr);
+    setCopiedUetr(true);
+    toast.success("UETR copied to clipboard");
+    setTimeout(() => setCopiedUetr(false), 2000);
+  };
+
   return (
-    <div className="w-full bg-zinc-950/60 border border-white/[0.08] rounded-3xl p-4 sm:p-5 backdrop-blur-xl shadow-lg">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3.5">
-        <div>
-          <h3 className="text-sm font-bold text-white tracking-tight">Recent Transactions</h3>
-          <p className="text-[11px] text-zinc-400">Cross-border atomic settlement ledger</p>
+    <>
+      <div className="w-full bg-zinc-950/60 border border-white/[0.08] rounded-3xl p-4 sm:p-5 backdrop-blur-xl shadow-lg">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3.5">
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight">Recent Transactions</h3>
+            <p className="text-[11px] text-zinc-400">Live immutable cross-border settlement history</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onSeeAll}
+            className="flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer group"
+          >
+            <span>See All ({transactions.length})</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onSeeAll}
-          className="flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer group"
-        >
-          <span>See All</span>
-          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-        </button>
-      </div>
+        {/* List of Real Transactions */}
+        {isLoading ? (
+          <div className="py-8 text-center space-y-2">
+            <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-zinc-400 font-mono">Loading real-time transactions...</p>
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="py-8 text-center bg-white/[0.02] border border-white/[0.04] rounded-2xl">
+            <p className="text-xs font-semibold text-zinc-400">No transactions recorded yet.</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">Send or receive money to generate your first transaction record.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {transactions.slice(0, 4).map((tx) => {
+              const isSender = tx.sender_user_id === user?.id;
+              const isJourneyAlloc = tx.category === "JOURNEY_ALLOCATION";
+              const isJourneyRefund = tx.category === "JOURNEY_CANCELLATION_REFUND";
 
-      {/* List */}
-      <div className="space-y-2.5">
-        {SAMPLE_RECENT_TRANSACTIONS.map((tx) => {
-          const isReceived = tx.type === "received";
-          const flag = COUNTRY_FLAGS[tx.counterpartyCountry] || "🌐";
+              const flag = isSender
+                ? COUNTRY_FLAGS[tx.recipient_country] || "🌐"
+                : COUNTRY_FLAGS[tx.sender_country] || "🌐";
 
-          return (
-            <div
-              key={tx.id}
-              onClick={() => onSelectTransaction?.(tx)}
-              className="p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] hover:border-white/[0.08] flex items-center justify-between transition-all cursor-pointer group"
-            >
-              {/* Left: Icon & Counterparty */}
-              <div className="flex items-center gap-3 min-w-0">
+              const counterpartyTitle = isJourneyAlloc
+                ? "Travel Allocation (Wallet Vault)"
+                : isJourneyRefund
+                ? "Travel Refund (Bank Account)"
+                : isSender
+                ? tx.recipient_name
+                : tx.sender_name;
+
+              const counterpartySubtitle = isJourneyAlloc || isJourneyRefund
+                ? tx.purpose_code
+                : isSender
+                ? tx.recipient_proxy
+                : tx.sender_proxy;
+
+              return (
                 <div
-                  className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                    isReceived
-                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
-                      : "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25"
-                  }`}
+                  key={tx.transaction_id}
+                  onClick={() => setSelectedTx(tx)}
+                  className="p-3 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] hover:border-white/[0.08] flex items-center justify-between transition-all cursor-pointer group"
                 >
-                  {isReceived ? (
-                    <ArrowDownLeft className="w-5 h-5 stroke-[2.2]" />
-                  ) : (
-                    <ArrowUpRight className="w-5 h-5 stroke-[2.2]" />
-                  )}
-                </div>
+                  {/* Left: Icon & Counterparty */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                        isJourneyAlloc
+                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
+                          : isJourneyRefund
+                          ? "bg-purple-500/15 text-purple-400 border border-purple-500/25"
+                          : !isSender
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                          : "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25"
+                      }`}
+                    >
+                      {isJourneyAlloc ? (
+                        <Plane className="w-5 h-5 stroke-[2.2]" />
+                      ) : isJourneyRefund ? (
+                        <RefreshCcw className="w-5 h-5 stroke-[2.2]" />
+                      ) : !isSender ? (
+                        <ArrowDownLeft className="w-5 h-5 stroke-[2.2]" />
+                      ) : (
+                        <ArrowUpRight className="w-5 h-5 stroke-[2.2]" />
+                      )}
+                    </div>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">{flag}</span>
-                    <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate group-hover:text-white transition-colors">
-                      {tx.counterpartyName}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{flag}</span>
+                        <p className="text-xs sm:text-sm font-bold text-zinc-100 truncate group-hover:text-white transition-colors">
+                          {counterpartyTitle}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 font-mono flex items-center gap-1 mt-0.5 truncate">
+                        <span>{counterpartySubtitle}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right: Amounts & Status */}
+                  <div className="text-right flex-shrink-0">
+                    <p
+                      className={`text-xs sm:text-sm font-black font-mono ${
+                        isJourneyAlloc
+                          ? "text-amber-400"
+                          : isJourneyRefund
+                          ? "text-purple-400"
+                          : !isSender
+                          ? "text-emerald-400"
+                          : "text-zinc-200"
+                      }`}
+                    >
+                      {isJourneyAlloc ? "-" : isJourneyRefund ? "+" : !isSender ? "+" : "-"} {tx.sender_currency} {Number(tx.sender_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-[10px] font-mono text-zinc-400">
+                      ≈ {tx.recipient_currency} {Number(tx.recipient_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <p className="text-[10px] text-zinc-400 font-mono flex items-center gap-1 mt-0.5">
-                    <span>{tx.counterpartyProxy}</span>
-                    <span>•</span>
-                    <span>{tx.timestamp}</span>
-                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Transaction Detail Receipt Modal */}
+      {selectedTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-[#08131d] border border-white/[0.08] rounded-3xl p-6 shadow-2xl text-white space-y-4">
+            <button
+              onClick={() => setSelectedTx(null)}
+              className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
+                <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <h3 className="text-base font-bold text-white">Settlement Receipt</h3>
+              <p className="text-2xl font-black font-mono text-emerald-300">
+                {selectedTx.sender_currency} {Number(selectedTx.sender_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-zinc-400">
+                Equivalent: {selectedTx.recipient_currency} {Number(selectedTx.recipient_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-2.5 text-xs text-zinc-300">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Transaction ID:</span>
+                <span className="font-mono font-semibold text-zinc-200">{selectedTx.transaction_id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Sender:</span>
+                <span className="font-semibold text-zinc-200">{selectedTx.sender_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Recipient:</span>
+                <span className="font-semibold text-zinc-200">{selectedTx.recipient_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Category:</span>
+                <span className="font-mono text-cyan-400 font-bold">{selectedTx.category}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">ISO 20022 Status:</span>
+                <span className="font-mono text-emerald-400 font-bold">{selectedTx.iso_status}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-500">UETR / Ref:</span>
+                <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-300">
+                  <span className="truncate max-w-[140px]">{selectedTx.uetr}</span>
+                  <button onClick={() => handleCopyUetr(selectedTx.uetr)} className="text-zinc-400 hover:text-white cursor-pointer">
+                    {copiedUetr ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
                 </div>
               </div>
-
-              {/* Right: Amounts & Status */}
-              <div className="text-right flex-shrink-0">
-                <p
-                  className={`text-xs sm:text-sm font-black font-mono ${
-                    isReceived ? "text-emerald-400" : "text-zinc-200"
-                  }`}
-                >
-                  {isReceived ? "+" : "-"} {tx.homeCurrency} {tx.homeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] font-mono text-zinc-400">
-                  ≈ {tx.foreignCurrency} {tx.foreignAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
+              {selectedTx.note && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Note:</span>
+                  <span className="text-zinc-300 italic">{selectedTx.note}</span>
+                </div>
+              )}
             </div>
-          );
-        })}
-      </div>
-    </div>
+
+            <button
+              onClick={() => setSelectedTx(null)}
+              className="w-full py-3 rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-zinc-200 transition-colors cursor-pointer"
+            >
+              Close Receipt
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
