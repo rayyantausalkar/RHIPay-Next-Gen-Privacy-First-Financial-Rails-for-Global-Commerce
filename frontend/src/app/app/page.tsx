@@ -1,84 +1,153 @@
 "use client";
 
-import React, { useState } from "react";
-import { Navigation } from "@/components/Navigation";
-import { ConsumerReceiveCard } from "@/components/receiver/ConsumerReceiveCard";
-import { ConsumerQRPresenter } from "@/components/receiver/ConsumerQRPresenter";
-import { RecentRequestsList } from "@/components/receiver/RecentRequestsList";
-import { SenderPayCard } from "@/components/sender/SenderPayCard";
-import { AdminComplianceDashboard } from "@/components/admin/AdminComplianceDashboard";
-import { DynamicPaymentRequestResponse } from "@/types/payment";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { AppTopNavbar } from "@/components/layout/AppTopNavbar";
+import { AppBottomNav } from "@/components/layout/AppBottomNav";
+import { HomeHeaderInfo } from "@/components/home/HomeHeaderInfo";
+import { CreativeHeroBanner } from "@/components/home/CreativeHeroBanner";
+import { ActionCardsHub } from "@/components/home/ActionCardsHub";
+import { FinancialGridBox } from "@/components/home/FinancialGridBox";
+import { RecentTransactionsFeed } from "@/components/home/RecentTransactionsFeed";
+import { HistoryView } from "@/components/history/HistoryView";
+import { SettingsView } from "@/components/settings/SettingsView";
+import { CorrespondentBankAdminDashboard } from "@/components/admin/CorrespondentBankAdminDashboard";
+import { ModernSendModal } from "@/components/send/ModernSendModal";
+import { ModernReceiveModal } from "@/components/receive/ModernReceiveModal";
+import { JourneyPlanningModal } from "@/components/journey/JourneyPlanningModal";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export default function AppPage() {
-  const [activeTab, setActiveTab] = useState<"receive" | "send" | "nexus">("receive");
-  const [activeRequest, setActiveRequest] = useState<DynamicPaymentRequestResponse | null>(null);
-  const [refreshListCount, setRefreshListCount] = useState<number>(0);
+  const router = useRouter();
+  const { user, logout, refreshUser } = useAuth();
 
-  const handleRequestGenerated = (req: DynamicPaymentRequestResponse) => {
-    setActiveRequest(req);
-    setRefreshListCount((prev) => prev + 1);
+  const [activeTab, setActiveTab] = useState<"home" | "history" | "settings" | "admin">("home");
+  const [isSendOpen, setIsSendOpen] = useState<boolean>(false);
+  const [isReceiveOpen, setIsReceiveOpen] = useState<boolean>(false);
+  const [isJourneyOpen, setIsJourneyOpen] = useState<boolean>(false);
+  const [activeJourney, setActiveJourney] = useState<any>(null);
+
+  // Redirect to login if user not logged in
+  useEffect(() => {
+    const token = localStorage.getItem("rhipay_token");
+    if (!token && !user) {
+      router.push("/login");
+    }
+  }, [user, router]);
+
+  // Fetch active user journey status
+  const fetchUserJourney = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API_BASE}/journey/user/${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActiveJourney(data);
+      }
+    } catch {
+      // safe fallback
+    }
   };
 
-  const handleResetRequest = () => {
-    setActiveRequest(null);
+  useEffect(() => {
+    fetchUserJourney();
+  }, [user]);
+
+  const handleLogout = () => {
+    logout();
+    toast.info("Logged out of RHI Pay");
+    router.push("/login");
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#040d14] text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Top Navigation Bar */}
-      <Navigation activeTab={activeTab} onSelectTab={setActiveTab} />
+    <div className="min-h-screen flex flex-col bg-[#040D14] text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-200 pb-24 sm:pb-28">
+      {/* 1. Top Navbar: RHI Pay Brand, Notification Drawer, Profile Avatar */}
+      <AppTopNavbar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onNavigateToJourney={() => setIsJourneyOpen(true)}
+      />
 
-      {/* Main Content Stage */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        {/* Tab 1: Receive Money / Request Dynamic QR */}
-        {activeTab === "receive" && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {activeRequest ? (
-              <div className="space-y-6">
-                <ConsumerQRPresenter
-                  request={activeRequest}
-                  onReset={handleResetRequest}
-                />
-                <RecentRequestsList
-                  onSelectRequest={(req) => setActiveRequest(req)}
-                  refreshTrigger={refreshListCount}
-                />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <ConsumerReceiveCard
-                  onRequestGenerated={handleRequestGenerated}
-                />
-                <div className="max-w-md mx-auto">
-                  <RecentRequestsList
-                    onSelectRequest={(req) => setActiveRequest(req)}
-                    refreshTrigger={refreshListCount}
-                  />
-                </div>
-              </div>
-            )}
+      {/* 2. Main Responsive Stage */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
+        {/* VIEW 1: HOME SCREEN (Default Post-Login Interface) */}
+        {activeTab === "home" && (
+          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+            {/* Top Fixed Header: Selected Country, Bank & Select/Start Journey */}
+            <HomeHeaderInfo
+              activeJourney={activeJourney}
+              onOpenJourneyModal={() => setIsJourneyOpen(true)}
+            />
+
+            {/* Creative Minimal Decorative Element */}
+            <CreativeHeroBanner />
+
+            {/* Side-by-Side Action Cards: Send Money & Receive Money */}
+            <ActionCardsHub
+              onOpenSend={() => setIsSendOpen(true)}
+              onOpenReceive={() => setIsReceiveOpen(true)}
+            />
+
+            {/* Financial Grid: Check Balance (with UPI PIN) & Dynamic Forex Rates */}
+            <FinancialGridBox />
+
+            {/* Recent Transactions List with "See All" */}
+            <RecentTransactionsFeed
+              onSeeAll={() => setActiveTab("history")}
+            />
           </div>
         )}
 
-        {/* Tab 2: Send Money / Proxy Resolution & Name Inquiry */}
-        {activeTab === "send" && (
-          <div className="animate-in fade-in duration-200">
-            <SenderPayCard />
-          </div>
-        )}
+        {/* VIEW 2: HISTORY (Complete Payment & Settlement Logs) */}
+        {activeTab === "history" && <HistoryView />}
 
-        {/* Tab 3: Nexus Telemetry & Compliance Hub */}
-        {activeTab === "nexus" && (
-          <div className="animate-in fade-in duration-200">
-            <AdminComplianceDashboard />
-          </div>
-        )}
+        {/* VIEW 3: SETTINGS (Security, Notifications, Guides, Logout) */}
+        {activeTab === "settings" && <SettingsView onLogout={handleLogout} />}
+
+        {/* VIEW 4: ADMIN / CORRESPONDENT BANK CONTROL ROOM */}
+        {activeTab === "admin" && <CorrespondentBankAdminDashboard />}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.06] py-4 text-center text-xs text-zinc-500 bg-[#040d14]">
-        RHIPay Nexus V2.0 — Instant Cross-Border P2P Settlement & Zero-Knowledge Proofs
-      </footer>
+      {/* 3. Bottom Sticky Navigation Dock (Home, History, Settings) */}
+      <AppBottomNav
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+      />
+
+      {/* 4. Modals */}
+      {/* Send Money Modal (QR Scan / 6-Digit Code, FX Quote, UPI PIN, 3-5s Telemetry) */}
+      <ModernSendModal
+        isOpen={isSendOpen}
+        onClose={() => setIsSendOpen(false)}
+        onPaymentCompleted={() => {
+          setIsSendOpen(false);
+          refreshUser();
+          fetchUserJourney();
+        }}
+      />
+
+      {/* Receive Money Modal (2-Minute Single Active Code / QR) */}
+      <ModernReceiveModal
+        isOpen={isReceiveOpen}
+        onClose={() => setIsReceiveOpen(false)}
+        onPaymentReceived={() => {
+          refreshUser();
+          fetchUserJourney();
+        }}
+      />
+
+      {/* Journey Planning Modal (Passport Upload, Currency Converter, Admin Review Queue) */}
+      <JourneyPlanningModal
+        isOpen={isJourneyOpen}
+        onClose={() => setIsJourneyOpen(false)}
+        onJourneyUpdated={() => {
+          fetchUserJourney();
+          refreshUser();
+        }}
+      />
     </div>
   );
 }

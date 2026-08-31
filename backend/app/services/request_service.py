@@ -1,5 +1,6 @@
 import io
 import uuid
+import random
 import hmac
 import hashlib
 import json
@@ -31,10 +32,12 @@ from app.services.spoke_service import spoke_service
 class RequestService:
     _SIGNING_SECRET = b"RHIPAY_NEXUS_ZKP_HUB_SIGNING_KEY_2026"
     _active_requests: Dict[str, dict] = {}
+    _short_code_map: Dict[str, str] = {}  # short_code -> reference_id
 
     def __init__(self):
         # Share memory dict
         self._requests = RequestService._active_requests
+        self._code_map = RequestService._short_code_map
 
     @classmethod
     def _compute_canonical_signature(
@@ -57,6 +60,30 @@ class RequestService:
     def _compute_payload_digest(cls, canonical_str: str) -> str:
         return hashlib.sha256(canonical_str.encode("utf-8")).hexdigest()
 
+    def _generate_unique_short_code(self) -> str:
+        chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        for _ in range(50):
+            code = "".join(random.choices(chars, k=6))
+            if code not in self._code_map:
+                return code
+        return f"RH{uuid.uuid4().hex[:4].upper()}"
+
+    def get_user_active_request(self, proxy_value: str) -> Optional[DynamicPaymentRequestResponse]:
+        clean_proxy = proxy_value.strip().replace(" ", "").lower()
+        now = datetime.now(timezone.utc)
+        for ref_id, rec in self._requests.items():
+            if rec.get("recipient_proxy_value", "").strip().replace(" ", "").lower() == clean_proxy:
+                if rec["status"] in [RequestStatus.ACTIVE, RequestStatus.SCANNED]:
+                    if now <= rec["expires_at"]:
+                        time_rem = max(0, int((rec["expires_at"] - now).total_seconds()))
+                        return DynamicPaymentRequestResponse(
+                            **rec,
+                            time_remaining_seconds=time_rem,
+                        )
+                    else:
+                        rec["status"] = RequestStatus.EXPIRED
+        return None
+
     def create_dynamic_request(
         self, request_in: DynamicQRCreateRequest
     ) -> DynamicPaymentRequestResponse:
@@ -75,11 +102,17 @@ class RequestService:
 
         formatted_proxy = val_res.formatted_value
 
-        # 2. Generate Unique Reference ID
+        # Check existing active request for this receiver
+        existing_active = self.get_user_active_request(formatted_proxy)
+        if existing_active:
+            return existing_active
+
+        # 2. Generate Unique Reference ID & 6-digit short code
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y%m%d")
         rand_id = uuid.uuid4().hex[:8].upper()
         reference_id = f"RHIPAY-REQ-{date_str}-{rand_id}"
+        short_code = self._generate_unique_short_code()
 
         # 3. Dynamic Currency Decimals & Minor Unit Calculation
         decimals = spoke_service.get_currency_decimals(dest_currency)
@@ -87,8 +120,8 @@ class RequestService:
         amount_in_minor_units = int(round(request_in.requested_amount * multiplier))
         amount_formatted = f"{request_in.requested_amount:.{decimals}f}"
 
-        # 4. Expiry handling
-        expiry_seconds = request_in.expiry_seconds or 900
+        # 4. Expiry handling (Default 120 seconds / 2 minutes)
+        expiry_seconds = request_in.expiry_seconds if (request_in.expiry_seconds and request_in.expiry_seconds > 0) else 120
         expires_at = now + timedelta(seconds=expiry_seconds)
         exp_iso = expires_at.isoformat()
 
@@ -107,6 +140,7 @@ class RequestService:
             version="2.0",
             scheme="rhipay",
             reference_id=reference_id,
+            short_code=short_code,
             recipient_name=request_in.recipient_name,
             proxy_type=p_type,
             proxy_value=formatted_proxy,
@@ -125,6 +159,7 @@ class RequestService:
         # 7. Standardized Interoperable URI with Cryptographic Signature
         query_params = {
             "ref": reference_id,
+            "code": short_code,
             "proxy": formatted_proxy,
             "type": p_type,
             "country": dest_country,
@@ -151,6 +186,7 @@ class RequestService:
         # 9. Store request record
         record = {
             "reference_id": reference_id,
+            "short_code": short_code,
             "status": RequestStatus.ACTIVE,
             "recipient_name": request_in.recipient_name,
             "recipient_proxy_type": p_type,
@@ -172,6 +208,7 @@ class RequestService:
             "signature": signature,
         }
         self._requests[reference_id] = record
+        self._code_map[short_code.upper()] = reference_id
 
         time_remaining = max(0, int((expires_at - now).total_seconds()))
 
@@ -182,25 +219,34 @@ class RequestService:
 
     def validate_payload(self, raw_payload: str) -> PayloadValidationResponse:
         """
-        Step 3: Ingests raw QR payment string / URI, parses all parameters,
-        and verifies cryptographic signature integrity, TTL expiry, and schema compliance.
+        Step 3: Ingests raw QR payment string / URI or 6-digit alphanumeric code,
+        parses all parameters, and verifies cryptographic signature integrity, TTL expiry, and schema compliance.
         """
-        clean_input = raw_payload.strip()
+        clean_input = raw_payload.strip().upper()
+
+        # Check if 6-digit short code
+        if clean_input in self._code_map:
+            ref_id = self._code_map[clean_input]
+            stored = self.get_request(ref_id)
+            if stored:
+                return self.validate_payload(stored.qr_payload)
+
+        clean_input_orig = raw_payload.strip()
 
         # 1. Parse URI or JSON
         params: Dict[str, str] = {}
-        if clean_input.startswith("rhipay://pay?"):
-            parsed_url = urllib.parse.urlparse(clean_input)
+        if clean_input_orig.startswith("rhipay://pay?"):
+            parsed_url = urllib.parse.urlparse(clean_input_orig)
             parsed_dict = urllib.parse.parse_qs(parsed_url.query)
             params = {k: v[0] for k, v in parsed_dict.items()}
-        elif clean_input.startswith("{"):
+        elif clean_input_orig.startswith("{"):
             try:
-                params = json.loads(clean_input)
+                params = json.loads(clean_input_orig)
             except Exception:
                 pass
         else:
             # Check if direct reference ID
-            stored = self.get_request(clean_input)
+            stored = self.get_request(clean_input_orig)
             if stored:
                 return self.validate_payload(stored.qr_payload)
 
@@ -228,7 +274,7 @@ class RequestService:
             exp_dt = datetime.fromisoformat(exp_str)
             if exp_dt.tzinfo is None:
                 exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-            
+
             # Check stored record if exists
             stored_rec = self._requests.get(ref)
             if stored_rec and stored_rec.get("expires_at"):
@@ -278,7 +324,7 @@ class RequestService:
         elif not sig_verified:
             error_msg = "Cryptographic signature mismatch: payment parameters have been altered or tampered"
         elif is_expired:
-            error_msg = "Payment request has expired (TTL window closed)"
+            error_msg = "Payment request has expired (TTL window closed after 2 minutes)"
         elif not proxy_valid:
             error_msg = f"Invalid proxy standard: {proxy_val.error_message}"
 
@@ -312,7 +358,11 @@ class RequestService:
         )
 
     def get_request(self, reference_id: str) -> Optional[DynamicPaymentRequestResponse]:
-        record = self._requests.get(reference_id)
+        ref_lookup = reference_id.strip()
+        if ref_lookup.upper() in self._code_map:
+            ref_lookup = self._code_map[ref_lookup.upper()]
+
+        record = self._requests.get(ref_lookup)
         if not record:
             return None
 
@@ -333,16 +383,18 @@ class RequestService:
         req = self.get_request(reference_id)
         if not req:
             return None
+        actual_ref = req.reference_id
         if req.status == RequestStatus.ACTIVE:
-            self._requests[reference_id]["status"] = RequestStatus.SCANNED
-        return self.get_request(reference_id)
+            self._requests[actual_ref]["status"] = RequestStatus.SCANNED
+        return self.get_request(actual_ref)
 
     def mark_completed(self, reference_id: str) -> Optional[DynamicPaymentRequestResponse]:
         req = self.get_request(reference_id)
         if not req:
             return None
-        self._requests[reference_id]["status"] = RequestStatus.COMPLETED
-        return self.get_request(reference_id)
+        actual_ref = req.reference_id
+        self._requests[actual_ref]["status"] = RequestStatus.COMPLETED
+        return self.get_request(actual_ref)
 
     def mark_completed_by_proxy(self, proxy: str) -> Optional[DynamicPaymentRequestResponse]:
         clean_proxy = proxy.strip().replace(" ", "").lower()
@@ -357,8 +409,9 @@ class RequestService:
         req = self.get_request(reference_id)
         if not req:
             return None
-        self._requests[reference_id]["status"] = RequestStatus.CANCELLED
-        return self.get_request(reference_id)
+        actual_ref = req.reference_id
+        self._requests[actual_ref]["status"] = RequestStatus.CANCELLED
+        return self.get_request(actual_ref)
 
     def list_recent_requests(self, limit: int = 10) -> List[DynamicPaymentRequestResponse]:
         now = datetime.now(timezone.utc)
@@ -367,7 +420,7 @@ class RequestService:
             key=lambda x: x["created_at"],
             reverse=True,
         )[:limit]
-        
+
         results = []
         for r in sorted_records:
             time_rem = max(0, int((r["expires_at"] - now).total_seconds()))

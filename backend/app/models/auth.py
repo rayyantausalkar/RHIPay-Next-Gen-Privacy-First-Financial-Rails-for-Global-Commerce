@@ -18,13 +18,23 @@ class UserRecord(SQLModel, table=True):
     home_country: str
     bank_name: str
     bic: Optional[str] = None
+    account_number: str = ""
+    ifsc_or_bic: Optional[str] = None
+    upi_pin_hash: str = ""
+    upi_pin_salt: str = ""
+    wallet_balance: float = 0.0  # Balance in home currency
+    travel_wallet_balance: float = 0.0  # Balance in active destination currency
+    active_journey_country: Optional[str] = None
+    active_journey_currency: Optional[str] = None
     account_type: str = "INDIVIDUAL"  # INDIVIDUAL | MERCHANT
     preferred_currency: str = "USD"
     proxy_type: str = "MOBILE"
     proxy_value: str = ""
     kyc_status: str = "VERIFIED"  # VERIFIED | PENDING | TIER_1
+    role: str = "USER"  # USER | ADMIN
     created_at: datetime = DBField(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
+    is_blocked: bool = False
 
 
 # Pydantic Schemas for API Requests & Responses
@@ -40,6 +50,7 @@ class UserSignupRequest(BaseModel):
     preferred_currency: Optional[str] = Field(default=None, description="Preferred Settlement Currency")
     proxy_type: Optional[str] = Field(default=None, description="Preferred Proxy Type: MOBILE, EMAIL, VPA, IBAN")
     proxy_value: Optional[str] = Field(default=None, description="Custom Proxy Identifier (optional)")
+    upi_pin: Optional[str] = Field(default="1234", description="Initial 4-digit or 6-digit UPI PIN")
 
 
 class UserLoginRequest(BaseModel):
@@ -55,11 +66,20 @@ class UserProfileResponse(BaseModel):
     home_country: str
     bank_name: str
     bic: Optional[str] = None
+    account_number: str
+    ifsc_or_bic: Optional[str] = None
     account_type: str
     preferred_currency: str
     proxy_type: str
     proxy_value: str
     kyc_status: str
+    wallet_balance: float
+    travel_wallet_balance: float
+    active_journey_country: Optional[str] = None
+    active_journey_currency: Optional[str] = None
+    role: str
+    is_blocked: bool
+    has_upi_pin: bool = True
     created_at: datetime
 
 
@@ -68,6 +88,34 @@ class AuthTokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserProfileResponse
     message: str = "Authentication successful"
+
+
+class UpiPinChangeRequest(BaseModel):
+    user_id: str
+    current_pin: Optional[str] = None
+    new_pin: str = Field(..., min_length=4, max_length=6, description="4 to 6 digit UPI PIN")
+
+
+class UpiPinVerifyRequest(BaseModel):
+    user_id: str
+    pin: str = Field(..., min_length=4, max_length=6)
+
+
+class BalanceCheckRequest(BaseModel):
+    user_id: str
+    pin: str = Field(..., min_length=4, max_length=6)
+
+
+class BalanceCheckResponse(BaseModel):
+    user_id: str
+    home_currency: str
+    wallet_balance: float
+    wallet_balance_formatted: str
+    active_journey_country: Optional[str] = None
+    active_journey_currency: Optional[str] = None
+    travel_wallet_balance: float = 0.0
+    travel_wallet_balance_formatted: Optional[str] = None
+    verified: bool = True
 
 
 class BankInfo(BaseModel):
@@ -80,3 +128,20 @@ class BankInfo(BaseModel):
 class BankDirectoryResponse(BaseModel):
     banks: Dict[str, List[BankInfo]]
     total_countries: int
+
+
+class AdminUserManagementItem(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    contact_number: str
+    home_country: str
+    bank_name: str
+    account_number: str
+    wallet_balance: float
+    travel_wallet_balance: float
+    active_journey_country: Optional[str] = None
+    kyc_status: str
+    role: str
+    is_blocked: bool
+    created_at: datetime

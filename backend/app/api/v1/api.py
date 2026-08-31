@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
+    journey,
+    notifications,
     requests,
     proxies,
     network,
@@ -16,6 +18,8 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & User Accounts"])
+api_router.include_router(journey.router, prefix="/journey", tags=["Travel Journey & Currency Allocation"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications & Authority Alerts"])
 api_router.include_router(network.router, prefix="/network", tags=["Nexus Network & Country Spokes"])
 api_router.include_router(requests.router, prefix="/requests", tags=["Payment Requests & QR"])
 api_router.include_router(proxies.router, prefix="/proxies", tags=["Proxy Directory & Validation"])
@@ -27,4 +31,3 @@ api_router.include_router(gateway.router, prefix="/gateway", tags=["Central API 
 api_router.include_router(routing.router, prefix="/routing", tags=["Supplementary Data Routing & Isolation"])
 api_router.include_router(settlement.router, prefix="/settlement", tags=["Two-Leg Atomic Settlement & Double-Entry Ledger"])
 api_router.include_router(telemetry.router, prefix="/telemetry", tags=["Real-Time Telemetry & Asynchronous Push"])
-

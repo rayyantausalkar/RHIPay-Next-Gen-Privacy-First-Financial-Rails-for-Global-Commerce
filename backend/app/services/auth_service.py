@@ -1,4 +1,5 @@
 import os
+import random
 import secrets
 import hashlib
 import uuid
@@ -14,7 +15,14 @@ from app.models.auth import (
     AuthTokenResponse,
     BankInfo,
     BankDirectoryResponse,
+    UpiPinChangeRequest,
+    UpiPinVerifyRequest,
+    BalanceCheckRequest,
+    BalanceCheckResponse,
+    AdminUserManagementItem,
 )
+from app.models.journey import JourneyRequestRecord
+from app.models.notification import NotificationRecord
 from app.services.spoke_service import spoke_service
 
 
@@ -123,6 +131,15 @@ class AuthService:
         self._seed_default_users()
 
     @staticmethod
+    def _generate_account_number(bank_name: str, country_code: str) -> str:
+        """Generate realistic unique bank account number matching bank format."""
+        prefix = "".join([c for c in bank_name.upper() if c.isalnum()])[:4]
+        if len(prefix) < 3:
+            prefix = f"{country_code}BK"
+        random_digits = "".join([str(random.randint(0, 9)) for _ in range(10)])
+        return f"{prefix}{random_digits}"
+
+    @staticmethod
     def _hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
         """Hash password using PBKDF2-HMAC-SHA256 with cryptographic salt."""
         if not salt:
@@ -141,85 +158,163 @@ class AuthService:
         check_hash, _ = AuthService._hash_password(password, salt)
         return secrets.compare_digest(check_hash, hashed)
 
+    @classmethod
+    def _to_profile_response(cls, record: UserRecord) -> UserProfileResponse:
+        return UserProfileResponse(
+            id=record.user_id,
+            email=record.email,
+            name=record.name,
+            contact_number=record.contact_number,
+            home_country=record.home_country,
+            bank_name=record.bank_name,
+            bic=record.bic,
+            account_number=record.account_number or f"{record.home_country}0019283746",
+            ifsc_or_bic=record.ifsc_or_bic or record.bic,
+            account_type=record.account_type,
+            preferred_currency=record.preferred_currency,
+            proxy_type=record.proxy_type,
+            proxy_value=record.proxy_value,
+            kyc_status=record.kyc_status,
+            wallet_balance=record.wallet_balance,
+            travel_wallet_balance=record.travel_wallet_balance,
+            active_journey_country=record.active_journey_country,
+            active_journey_currency=record.active_journey_currency,
+            role=record.role or "USER",
+            is_blocked=record.is_blocked,
+            has_upi_pin=bool(record.upi_pin_hash),
+            created_at=record.created_at,
+        )
+
     def _seed_default_users(self):
-        """Seed initial benchmark fintech users if database is empty."""
+        """Seed initial benchmark fintech users and admin if database is empty."""
         with Session(engine) as session:
-            existing = session.exec(select(UserRecord)).first()
-            if existing:
-                return
-
-            demo_users = [
-                {
-                    "email": "rahul@okhdfcbank.com",
-                    "name": "Rahul Sharma",
-                    "contact_number": "+919876543210",
-                    "home_country": "IN",
-                    "bank_name": "HDFC Bank Ltd",
-                    "bic": "HDFCINBB",
-                    "account_type": "INDIVIDUAL",
-                    "preferred_currency": "INR",
-                    "proxy_type": "VPA",
-                    "proxy_value": "rahul@okhdfcbank",
-                },
-                {
-                    "email": "meiling@dbs.sg",
-                    "name": "Mei Ling",
-                    "contact_number": "+6591234567",
-                    "home_country": "SG",
-                    "bank_name": "DBS Bank Singapore",
-                    "bic": "DBSGSGSG",
-                    "account_type": "INDIVIDUAL",
-                    "preferred_currency": "SGD",
-                    "proxy_type": "MOBILE",
-                    "proxy_value": "+6591234567",
-                },
-                {
-                    "email": "sarah.j@nexus.org",
-                    "name": "Sarah Jenkins",
-                    "contact_number": "+14155552671",
-                    "home_country": "US",
-                    "bank_name": "JPMorgan Chase Bank",
-                    "bic": "CHASUS33",
-                    "account_type": "INDIVIDUAL",
-                    "preferred_currency": "USD",
-                    "proxy_type": "EMAIL",
-                    "proxy_value": "sarah.j@nexus.org",
-                },
-                {
-                    "email": "demo@rhipay.io",
-                    "name": "Alex Chen",
-                    "contact_number": "+6581234567",
-                    "home_country": "SG",
-                    "bank_name": "Oversea-Chinese Banking Corp (OCBC)",
-                    "bic": "OCBCSGSG",
-                    "account_type": "MERCHANT",
-                    "preferred_currency": "USD",
-                    "proxy_type": "MOBILE",
-                    "proxy_value": "+6581234567",
-                },
-            ]
-
-            for u in demo_users:
-                pwd_hash, salt = self._hash_password("Password123!")
-                rec = UserRecord(
-                    user_id=f"USR-{uuid.uuid4().hex[:10].upper()}",
-                    email=u["email"].lower().strip(),
+            # Check if admin exists
+            admin = session.exec(select(UserRecord).where(UserRecord.email == "admin.rhipay@gmail.com")).first()
+            if not admin:
+                pwd_hash, salt = self._hash_password("admin@123.")
+                pin_hash, pin_salt = self._hash_password("1234")
+                admin_rec = UserRecord(
+                    user_id="RHI-ADMIN-001",
+                    email="admin.rhipay@gmail.com",
                     hashed_password=pwd_hash,
                     salt=salt,
-                    name=u["name"],
-                    contact_number=u["contact_number"],
-                    home_country=u["home_country"].upper(),
-                    bank_name=u["bank_name"],
-                    bic=u["bic"],
-                    account_type=u["account_type"],
-                    preferred_currency=u["preferred_currency"],
-                    proxy_type=u["proxy_type"],
-                    proxy_value=u["proxy_value"],
+                    name="RHI Pay Correspondent Bank Authority",
+                    contact_number="+18005557447",
+                    home_country="US",
+                    bank_name="Central Correspondent Clearing Bank",
+                    bic="RHICUS33",
+                    account_number="RHICENTRAL990011",
+                    ifsc_or_bic="RHICUS33",
+                    upi_pin_hash=pin_hash,
+                    upi_pin_salt=pin_salt,
+                    wallet_balance=10000000.0,
+                    travel_wallet_balance=10000000.0,
+                    account_type="MERCHANT",
+                    preferred_currency="USD",
+                    proxy_type="EMAIL",
+                    proxy_value="admin.rhipay@gmail.com",
                     kyc_status="VERIFIED",
+                    role="ADMIN",
                     created_at=datetime.now(timezone.utc),
                     is_active=True,
+                    is_blocked=False,
                 )
-                session.add(rec)
+                session.add(admin_rec)
+
+            existing = session.exec(select(UserRecord).where(UserRecord.email == "rahul@okhdfcbank.com")).first()
+            if not existing:
+                demo_users = [
+                    {
+                        "email": "rahul@okhdfcbank.com",
+                        "name": "Rahul Sharma",
+                        "contact_number": "+919876543210",
+                        "home_country": "IN",
+                        "bank_name": "HDFC Bank Ltd",
+                        "bic": "HDFCINBB",
+                        "account_type": "INDIVIDUAL",
+                        "preferred_currency": "INR",
+                        "proxy_type": "VPA",
+                        "proxy_value": "rahul@okhdfcbank",
+                        "wallet_balance": 50000.0,
+                        "travel_wallet_balance": 0.0,
+                    },
+                    {
+                        "email": "meiling@dbs.sg",
+                        "name": "Mei Ling",
+                        "contact_number": "+6591234567",
+                        "home_country": "SG",
+                        "bank_name": "DBS Bank Singapore",
+                        "bic": "DBSGSGSG",
+                        "account_type": "INDIVIDUAL",
+                        "preferred_currency": "SGD",
+                        "proxy_type": "MOBILE",
+                        "proxy_value": "+6591234567",
+                        "wallet_balance": 5000.0,
+                        "travel_wallet_balance": 0.0,
+                    },
+                    {
+                        "email": "sarah.j@nexus.org",
+                        "name": "Sarah Jenkins",
+                        "contact_number": "+14155552671",
+                        "home_country": "US",
+                        "bank_name": "JPMorgan Chase Bank",
+                        "bic": "CHASUS33",
+                        "account_type": "INDIVIDUAL",
+                        "preferred_currency": "USD",
+                        "proxy_type": "EMAIL",
+                        "proxy_value": "sarah.j@nexus.org",
+                        "wallet_balance": 10000.0,
+                        "travel_wallet_balance": 0.0,
+                    },
+                ]
+
+                for u in demo_users:
+                    pwd_hash, salt = self._hash_password("Password123!")
+                    pin_hash, pin_salt = self._hash_password("1234")
+                    acct_num = self._generate_account_number(u["bank_name"], u["home_country"])
+                    rec = UserRecord(
+                        user_id=f"USR-{uuid.uuid4().hex[:10].upper()}",
+                        email=u["email"].lower().strip(),
+                        hashed_password=pwd_hash,
+                        salt=salt,
+                        name=u["name"],
+                        contact_number=u["contact_number"],
+                        home_country=u["home_country"].upper(),
+                        bank_name=u["bank_name"],
+                        bic=u["bic"],
+                        account_number=acct_num,
+                        ifsc_or_bic=u["bic"],
+                        upi_pin_hash=pin_hash,
+                        upi_pin_salt=pin_salt,
+                        wallet_balance=u.get("wallet_balance", 0.0),
+                        travel_wallet_balance=u.get("travel_wallet_balance", 0.0),
+                        account_type=u["account_type"],
+                        preferred_currency=u["preferred_currency"],
+                        proxy_type=u["proxy_type"],
+                        proxy_value=u["proxy_value"],
+                        kyc_status="VERIFIED",
+                        role="USER",
+                        created_at=datetime.now(timezone.utc),
+                        is_active=True,
+                        is_blocked=False,
+                    )
+                    session.add(rec)
+
+            # Ensure all users have valid account numbers and default UPI PIN
+            all_users = session.exec(select(UserRecord)).all()
+            for u in all_users:
+                modified = False
+                if not u.upi_pin_hash:
+                    pin_h, pin_s = self._hash_password("1234")
+                    u.upi_pin_hash = pin_h
+                    u.upi_pin_salt = pin_s
+                    modified = True
+                if not u.account_number:
+                    u.account_number = self._generate_account_number(u.bank_name, u.home_country)
+                    modified = True
+                if modified:
+                    session.add(u)
+
             session.commit()
 
     def get_bank_directory(self) -> BankDirectoryResponse:
@@ -238,7 +333,7 @@ class AuthService:
         return BankDirectoryResponse(banks=result, total_countries=len(result))
 
     def signup(self, req: UserSignupRequest) -> AuthTokenResponse:
-        """Register new user account in SQLite database."""
+        """Register new user account in SQLite database with unique allocated bank details."""
         if req.password != req.confirm_password:
             raise ValueError("Passwords do not match. Please re-enter your password.")
 
@@ -261,11 +356,18 @@ class AuthService:
         if not bic:
             bic = f"{country_code}BANKXX"
 
+        # Generate unique bank account number
+        account_number = self._generate_account_number(req.bank_name, country_code)
+
         # Determine default proxy
         p_type = (req.proxy_type or "MOBILE").upper()
         p_value = req.proxy_value or (
             req.contact_number if p_type == "MOBILE" else clean_email
         )
+
+        # Setup initial UPI pin (default 1234 if not provided)
+        initial_pin = req.upi_pin or "1234"
+        pin_hash, pin_salt = self._hash_password(initial_pin)
 
         with Session(engine) as session:
             # Check duplicate email
@@ -287,34 +389,27 @@ class AuthService:
                 home_country=country_code,
                 bank_name=req.bank_name.strip(),
                 bic=bic,
+                account_number=account_number,
+                ifsc_or_bic=bic,
+                upi_pin_hash=pin_hash,
+                upi_pin_salt=pin_salt,
+                wallet_balance=0.0,
+                travel_wallet_balance=0.0,
                 account_type=req.account_type.upper() if req.account_type else "INDIVIDUAL",
                 preferred_currency=currency.upper(),
                 proxy_type=p_type,
                 proxy_value=p_value,
                 kyc_status="VERIFIED",
+                role="USER",
                 created_at=datetime.now(timezone.utc),
                 is_active=True,
+                is_blocked=False,
             )
             session.add(record)
             session.commit()
             session.refresh(record)
 
-            profile = UserProfileResponse(
-                id=record.user_id,
-                email=record.email,
-                name=record.name,
-                contact_number=record.contact_number,
-                home_country=record.home_country,
-                bank_name=record.bank_name,
-                bic=record.bic,
-                account_type=record.account_type,
-                preferred_currency=record.preferred_currency,
-                proxy_type=record.proxy_type,
-                proxy_value=record.proxy_value,
-                kyc_status=record.kyc_status,
-                created_at=record.created_at,
-            )
-
+            profile = self._to_profile_response(record)
             token = f"rhi_sec_{uuid.uuid4().hex}_{secrets.token_hex(16)}"
             return AuthTokenResponse(
                 access_token=token,
@@ -334,25 +429,13 @@ class AuthService:
             if not record or not self._verify_password(req.password, record.hashed_password, record.salt):
                 raise ValueError("Invalid email address or password. Please try again.")
 
+            if record.is_blocked:
+                raise ValueError("Your account has been temporarily blocked by RHI Pay authorities. Please contact support.")
+
             if not record.is_active:
                 raise ValueError("This account has been deactivated. Please contact support.")
 
-            profile = UserProfileResponse(
-                id=record.user_id,
-                email=record.email,
-                name=record.name,
-                contact_number=record.contact_number,
-                home_country=record.home_country,
-                bank_name=record.bank_name,
-                bic=record.bic,
-                account_type=record.account_type,
-                preferred_currency=record.preferred_currency,
-                proxy_type=record.proxy_type,
-                proxy_value=record.proxy_value,
-                kyc_status=record.kyc_status,
-                created_at=record.created_at,
-            )
-
+            profile = self._to_profile_response(record)
             token = f"rhi_sec_{uuid.uuid4().hex}_{secrets.token_hex(16)}"
             return AuthTokenResponse(
                 access_token=token,
@@ -360,6 +443,148 @@ class AuthService:
                 user=profile,
                 message=f"Welcome back, {record.name.split()[0]}!",
             )
+
+    def change_upi_pin(self, req: UpiPinChangeRequest) -> Dict[str, Any]:
+        """Update UPI PIN for user account."""
+        if len(req.new_pin) not in (4, 6) or not req.new_pin.isdigit():
+            raise ValueError("UPI PIN must be either 4 or 6 digits.")
+
+        with Session(engine) as session:
+            record = session.exec(select(UserRecord).where(UserRecord.user_id == req.user_id)).first()
+            if not record:
+                raise ValueError("User not found.")
+
+            if record.upi_pin_hash and req.current_pin:
+                if not self._verify_password(req.current_pin, record.upi_pin_hash, record.upi_pin_salt):
+                    raise ValueError("Current UPI PIN is incorrect.")
+
+            pin_hash, pin_salt = self._hash_password(req.new_pin)
+            record.upi_pin_hash = pin_hash
+            record.upi_pin_salt = pin_salt
+            session.add(record)
+            session.commit()
+
+            return {"success": True, "message": "UPI PIN updated successfully."}
+
+    def verify_upi_pin(self, req: UpiPinVerifyRequest) -> bool:
+        """Verify user entered UPI PIN."""
+        with Session(engine) as session:
+            record = session.exec(select(UserRecord).where(UserRecord.user_id == req.user_id)).first()
+            if not record or not record.upi_pin_hash:
+                return False
+            return self._verify_password(req.pin, record.upi_pin_hash, record.upi_pin_salt)
+
+    def check_balance(self, req: BalanceCheckRequest) -> BalanceCheckResponse:
+        """Verify PIN and return account balance."""
+        with Session(engine) as session:
+            record = session.exec(select(UserRecord).where(UserRecord.user_id == req.user_id)).first()
+            if not record:
+                raise ValueError("User not found.")
+
+            if record.upi_pin_hash:
+                if not self._verify_password(req.pin, record.upi_pin_hash, record.upi_pin_salt):
+                    raise ValueError("Incorrect UPI PIN. Please try again.")
+
+            home_cur = record.preferred_currency or "USD"
+            dest_cur = record.active_journey_currency or "USD"
+
+            return BalanceCheckResponse(
+                user_id=record.user_id,
+                home_currency=home_cur,
+                wallet_balance=record.wallet_balance,
+                wallet_balance_formatted=f"{home_cur} {record.wallet_balance:,.2f}",
+                active_journey_country=record.active_journey_country,
+                active_journey_currency=record.active_journey_currency,
+                travel_wallet_balance=record.travel_wallet_balance,
+                travel_wallet_balance_formatted=f"{dest_cur} {record.travel_wallet_balance:,.2f}" if record.active_journey_country else None,
+                verified=True,
+            )
+
+    def get_all_users(self) -> List[AdminUserManagementItem]:
+        """Fetch all users for Admin management."""
+        with Session(engine) as session:
+            records = session.exec(select(UserRecord).order_by(UserRecord.created_at.desc())).all()
+            return [
+                AdminUserManagementItem(
+                    user_id=r.user_id,
+                    name=r.name,
+                    email=r.email,
+                    contact_number=r.contact_number,
+                    home_country=r.home_country,
+                    bank_name=r.bank_name,
+                    account_number=r.account_number or "N/A",
+                    wallet_balance=r.wallet_balance,
+                    travel_wallet_balance=r.travel_wallet_balance,
+                    active_journey_country=r.active_journey_country,
+                    kyc_status=r.kyc_status,
+                    role=r.role or "USER",
+                    is_blocked=r.is_blocked,
+                    created_at=r.created_at,
+                )
+                for r in records
+            ]
+
+    def toggle_block_user(self, user_id: str) -> Dict[str, Any]:
+        """Block or unblock a user account."""
+        with Session(engine) as session:
+            record = session.exec(select(UserRecord).where(UserRecord.user_id == user_id)).first()
+            if not record:
+                raise ValueError("User not found.")
+            record.is_blocked = not record.is_blocked
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            status_text = "blocked" if record.is_blocked else "unblocked"
+            return {
+                "success": True,
+                "user_id": user_id,
+                "is_blocked": record.is_blocked,
+                "message": f"User account has been {status_text}.",
+            }
+
+    def process_payment_transfer(
+        self,
+        sender_proxy: str,
+        recipient_proxy: str,
+        sender_debit_amt: float,
+        recipient_credit_amt: float,
+    ) -> Dict[str, Any]:
+        """Deduct sender balance and credit recipient balance upon settled payment."""
+        with Session(engine) as session:
+            sender = session.exec(
+                select(UserRecord).where(
+                    (UserRecord.proxy_value == sender_proxy)
+                    | (UserRecord.contact_number == sender_proxy)
+                    | (UserRecord.email == sender_proxy)
+                    | (UserRecord.user_id == sender_proxy)
+                )
+            ).first()
+
+            recipient = session.exec(
+                select(UserRecord).where(
+                    (UserRecord.proxy_value == recipient_proxy)
+                    | (UserRecord.contact_number == recipient_proxy)
+                    | (UserRecord.email == recipient_proxy)
+                    | (UserRecord.user_id == recipient_proxy)
+                )
+            ).first()
+
+            if sender:
+                sender.wallet_balance = max(0.0, sender.wallet_balance - sender_debit_amt)
+                if sender.travel_wallet_balance > 0:
+                    sender.travel_wallet_balance = max(0.0, sender.travel_wallet_balance - recipient_credit_amt)
+                session.add(sender)
+
+            if recipient:
+                recipient.wallet_balance += recipient_credit_amt
+                session.add(recipient)
+
+            session.commit()
+
+            return {
+                "sender_balance_after": sender.wallet_balance if sender else 0.0,
+                "recipient_balance_after": recipient.wallet_balance if recipient else 0.0,
+            }
 
     def get_user_by_email(self, email: str) -> Optional[UserProfileResponse]:
         """Fetch user profile by email."""
@@ -369,21 +594,16 @@ class AuthService:
             record = session.exec(statement).first()
             if not record:
                 return None
-            return UserProfileResponse(
-                id=record.user_id,
-                email=record.email,
-                name=record.name,
-                contact_number=record.contact_number,
-                home_country=record.home_country,
-                bank_name=record.bank_name,
-                bic=record.bic,
-                account_type=record.account_type,
-                preferred_currency=record.preferred_currency,
-                proxy_type=record.proxy_type,
-                proxy_value=record.proxy_value,
-                kyc_status=record.kyc_status,
-                created_at=record.created_at,
-            )
+            return self._to_profile_response(record)
+
+    def get_user_by_id(self, user_id: str) -> Optional[UserProfileResponse]:
+        """Fetch user profile by user_id."""
+        with Session(engine) as session:
+            statement = select(UserRecord).where(UserRecord.user_id == user_id)
+            record = session.exec(statement).first()
+            if not record:
+                return None
+            return self._to_profile_response(record)
 
 
 auth_service = AuthService()

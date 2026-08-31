@@ -37,6 +37,7 @@ export interface QRPayloadData {
   version: string;
   scheme: string;
   reference_id: string;
+  short_code?: string;
   recipient_name: string;
   proxy_type: string;
   proxy_value: string;
@@ -68,6 +69,7 @@ export interface DynamicPaymentRequestCreate {
 
 export interface DynamicPaymentRequestResponse {
   reference_id: string;
+  short_code?: string;
   status: RequestStatus;
   recipient_name: string;
   recipient_proxy_type: string;

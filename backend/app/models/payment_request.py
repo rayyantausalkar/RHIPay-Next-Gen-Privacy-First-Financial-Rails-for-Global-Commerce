@@ -33,7 +33,7 @@ class DynamicQRCreateRequest(BaseModel):
     requested_amount: Decimal = Field(..., gt=0, decimal_places=4, description="Requested amount in destination currency")
     origin_spoke: Optional[str] = Field(None, min_length=2, max_length=2, pattern="^[A-Z]{2}$", description="Optional Originating Country Spoke")
     note: Optional[str] = Field(None, max_length=200, description="Payment note / invoice reference")
-    expiry_seconds: Optional[int] = Field(900, ge=1, le=86400, description="QR code validity duration in seconds")
+    expiry_seconds: Optional[int] = Field(120, ge=1, le=86400, description="QR code validity duration in seconds (defaults to 120s / 2min)")
     purpose_code: Optional[str] = Field("P2P_TRANSFER", description="ISO 20022 Purpose Code")
     recipient_public_key: Optional[str] = Field(None, description="Public key for FATF encrypted envelope")
 
@@ -46,6 +46,7 @@ class QRPayloadData(BaseModel):
     version: str = "2.0"
     scheme: str = "rhipay"
     reference_id: str
+    short_code: str
     recipient_name: str
     proxy_type: str
     proxy_value: str
@@ -63,6 +64,7 @@ class QRPayloadData(BaseModel):
 
 class DynamicPaymentRequestResponse(BaseModel):
     reference_id: str = Field(..., description="Unique payment request identifier (e.g. RHIPAY-REQ-...)")
+    short_code: str = Field(..., description="6-character alphanumeric payment code (e.g. RH7X92)")
     status: RequestStatus
     recipient_name: str
     recipient_proxy_type: str
