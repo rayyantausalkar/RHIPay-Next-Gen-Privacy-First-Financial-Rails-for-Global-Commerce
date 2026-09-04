@@ -226,20 +226,34 @@ class JourneyService:
             if not user:
                 raise ValueError(f"User {user_id} not found")
 
+            # Look for active approved or pending journey
             journey = session.exec(
                 select(JourneyRequestRecord)
-                .where(JourneyRequestRecord.user_id == user_id)
+                .where(
+                    JourneyRequestRecord.user_id == user_id,
+                    JourneyRequestRecord.status.in_(["APPROVED", "PENDING"])
+                )
                 .order_by(JourneyRequestRecord.created_at.desc())
             ).first()
 
-            if not journey or journey.status not in ["APPROVED", "PENDING"]:
+            if not journey:
+                # Check any journey record for user
+                journey = session.exec(
+                    select(JourneyRequestRecord)
+                    .where(JourneyRequestRecord.user_id == user_id)
+                    .order_by(JourneyRequestRecord.created_at.desc())
+                ).first()
+
+            # If user has no active journey country and no travel balance and no pending/approved journey
+            if not journey and not user.active_journey_country and (user.travel_wallet_balance or 0.0) <= 0:
                 raise ValueError("No active travel journey found to cancel.")
 
             home_cur = user.preferred_currency or "INR"
             dest_cur = user.active_journey_currency or (journey.destination_currency if journey else "USD")
+            dest_country = user.active_journey_country or (journey.destination_country if journey else "US")
 
-            if journey.status == "PENDING":
-                # For pending requests, funds have not been deducted yet
+            if journey and journey.status == "PENDING" and not user.active_journey_country and (user.travel_wallet_balance or 0.0) <= 0:
+                # For pending requests where funds have not been credited yet
                 journey.status = "CANCELLED"
                 journey.rejection_reason = "Cancelled by user before approval."
                 session.add(journey)
@@ -256,33 +270,49 @@ class JourneyService:
                 )
 
             # For approved journeys: refund remaining travel balance
-            remaining_travel = user.travel_wallet_balance
+            remaining_travel = float(user.travel_wallet_balance or 0.0)
             if remaining_travel > 0:
                 # Convert back to home currency
-                if journey.exchange_rate and journey.exchange_rate > 0:
+                if journey and journey.exchange_rate and journey.exchange_rate > 0:
                     gross_refund = round(remaining_travel / journey.exchange_rate, 2)
                 else:
-                    gross_refund = round(remaining_travel * 86.85, 2)
+                    _, inv = fx_service.get_exchange_rate(home_cur, dest_cur)
+                    inv_f = float(inv)
+                    gross_refund = round(remaining_travel / inv_f, 2) if inv_f > 0 else round(remaining_travel * 86.85, 2)
             else:
                 gross_refund = 0.0
 
             # Apply 2.5% penalty fee
             penalty_rate = 0.025
             penalty_fee = round(gross_refund * penalty_rate, 2)
-            net_refund = round(gross_refund - penalty_fee, 2)
+            net_refund = max(0.0, round(gross_refund - penalty_fee, 2))
 
             # Credit back to user's primary bank account
             user.wallet_balance = round(user.wallet_balance + net_refund, 2)
             user.travel_wallet_balance = 0.0
-            dest_country = user.active_journey_country or journey.destination_country
             user.active_journey_country = None
             user.active_journey_currency = None
 
-            journey.status = "CANCELLED"
-            journey.rejection_reason = (
-                f"Journey cancelled by user. 2.5% fee ({home_cur} {penalty_fee:,.2f}) deducted. "
-                f"Net refund {home_cur} {net_refund:,.2f} returned to bank account."
-            )
+            if journey:
+                journey.status = "CANCELLED"
+                journey.rejection_reason = (
+                    f"Journey cancelled by user. 2.5% fee ({home_cur} {penalty_fee:,.2f}) deducted. "
+                    f"Net refund {home_cur} {net_refund:,.2f} returned to bank account."
+                )
+                session.add(journey)
+
+            # Cancel any other pending journey requests for this user
+            all_pending = session.exec(
+                select(JourneyRequestRecord)
+                .where(
+                    JourneyRequestRecord.user_id == user_id,
+                    JourneyRequestRecord.status == "PENDING"
+                )
+            ).all()
+            for p in all_pending:
+                p.status = "CANCELLED"
+                p.rejection_reason = "Cancelled upon active journey refund."
+                session.add(p)
 
             now = datetime.now(timezone.utc)
             tx_record = TransactionRecord(
@@ -302,7 +332,7 @@ class JourneyService:
                 recipient_currency=home_cur,
                 recipient_amount=net_refund,
                 recipient_account_number=user.account_number,
-                exchange_rate=journey.exchange_rate if journey else 1.0,
+                exchange_rate=journey.exchange_rate if journey and journey.exchange_rate else 1.0,
                 purpose_code="JOURNEY_CANCELLATION_REFUND",
                 status="SETTLED",
                 category="JOURNEY_CANCELLATION_REFUND",
@@ -312,16 +342,16 @@ class JourneyService:
             )
 
             session.add(user)
-            session.add(journey)
             session.add(tx_record)
             session.commit()
             session.refresh(user)
-            session.refresh(journey)
+            if journey:
+                session.refresh(journey)
 
             notification_service.create_notification(
                 user_id=user.user_id,
-                title="✈️ Travel Journey Cancelled",
-                message=f"Journey to {dest_country} cancelled. Net refund of {home_cur} {net_refund:,.2f} credited to your bank account after 2.5% reconversion penalty ({home_cur} {penalty_fee:,.2f}).",
+                title="✈️ Travel Journey Cancelled & Refunded",
+                message=f"Journey to {dest_country} cancelled. Net refund of {home_cur} {net_refund:,.2f} credited to your bank account ({user.bank_name}) after 2.5% reconversion penalty ({home_cur} {penalty_fee:,.2f}).",
                 notif_type="SYSTEM",
             )
 
@@ -333,7 +363,7 @@ class JourneyService:
                 net_refund_home=net_refund,
                 home_currency=home_cur,
                 new_wallet_balance=user.wallet_balance,
-                message=f"Journey cancelled successfully. {home_cur} {net_refund:,.2f} refunded after 2.5% penalty ({home_cur} {penalty_fee:,.2f}).",
+                message=f"Journey cancelled successfully. {home_cur} {net_refund:,.2f} refunded to {user.bank_name} after 2.5% penalty ({home_cur} {penalty_fee:,.2f}).",
             )
 
 

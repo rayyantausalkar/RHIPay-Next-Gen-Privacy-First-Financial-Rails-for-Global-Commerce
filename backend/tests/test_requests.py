@@ -105,3 +105,51 @@ def test_proxy_validation_country_agnostic():
     # Standard IBAN
     res_iban = ProxyService.validate_proxy("IBAN", "DE89370400440532013000", "DE")
     assert res_iban.is_valid is True
+
+
+def test_direct_proxy_lookup_and_send_receive_consistency():
+    # 1. Receiver creates dynamic payment QR
+    create_res = client.post(
+        "/api/v1/requests/create",
+        json={
+            "recipient_name": "Mei Ling",
+            "recipient_proxy_type": "MOBILE",
+            "recipient_proxy_value": "+6591234567",
+            "destination_country": "SG",
+            "destination_currency": "SGD",
+            "requested_amount": 1.0,
+            "expiry_seconds": 86400,
+            "purpose_code": "P2P_TRANSFER",
+        },
+    )
+    assert create_res.status_code == 201
+    created_req = create_res.json()
+    ref_id = created_req["reference_id"]
+    assert created_req["status"] == "ACTIVE"
+
+    # 2. Sender validates payload via direct phone number lookup
+    val_res = client.post(
+        "/api/v1/requests/validate-payload",
+        json={"raw_payload": "+6591234567"},
+    )
+    assert val_res.status_code == 200
+    val_data = val_res.json()
+    assert val_data["is_valid"] is True
+    assert val_data["recipient_name"] == "Mei Ling"
+    assert val_data["proxy_value"] == "+6591234567"
+
+    # 3. Complete payment with transfer amount $75.00
+    from app.services.request_service import request_service
+    comp_req = request_service.mark_completed(ref_id, amount=75.0)
+    assert comp_req is not None
+    assert comp_req.status == RequestStatus.COMPLETED
+    assert comp_req.requested_amount == 75.0
+    assert comp_req.amount_in_cents == 7500
+
+    # 4. Polling endpoint reflects COMPLETED status with exact settled amount $75.00
+    poll_res = client.get(f"/api/v1/requests/{ref_id}")
+    assert poll_res.status_code == 200
+    poll_data = poll_res.json()
+    assert poll_data["status"] == "COMPLETED"
+    assert float(poll_data["requested_amount"]) == 75.0
+

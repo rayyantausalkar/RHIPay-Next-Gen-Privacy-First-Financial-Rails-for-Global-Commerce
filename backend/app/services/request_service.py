@@ -267,6 +267,44 @@ class RequestService:
 
         schema_valid = bool(ref and proxy and country and ccy and amt_str and exp_str)
 
+        # Fallback: check if raw input is a direct proxy/email/phone/user_id from the database
+        if not schema_valid:
+            try:
+                from sqlmodel import Session, select
+                from app.models.auth import UserRecord
+                from app.core.database import engine
+
+                with Session(engine) as session:
+                    clean_lookup = clean_input_orig.lower()
+                    user_match = session.exec(
+                        select(UserRecord).where(
+                            (UserRecord.proxy_value == clean_input_orig)
+                            | (UserRecord.contact_number == clean_input_orig)
+                            | (UserRecord.email == clean_lookup)
+                            | (UserRecord.user_id == clean_input_orig)
+                            | (UserRecord.name == clean_input_orig)
+                        )
+                    ).first()
+
+                    if user_match:
+                        dest_country = (user_match.active_journey_country or user_match.home_country or "US").upper()
+                        dest_currency = (user_match.active_journey_currency or user_match.preferred_currency or "USD").upper()
+                        created_req = self.create_dynamic_request(
+                            DynamicQRCreateRequest(
+                                recipient_name=user_match.name,
+                                recipient_proxy_type=user_match.proxy_type or "MOBILE",
+                                recipient_proxy_value=user_match.proxy_value or user_match.contact_number or user_match.email,
+                                destination_country=dest_country,
+                                destination_currency=dest_currency,
+                                requested_amount=1.0,
+                                expiry_seconds=86400,
+                                purpose_code="P2P_TRANSFER",
+                            )
+                        )
+                        return self.validate_payload(created_req.qr_payload)
+            except Exception:
+                pass
+
         # Parse expiry date
         now = datetime.now(timezone.utc)
         is_expired = False
@@ -388,20 +426,28 @@ class RequestService:
             self._requests[actual_ref]["status"] = RequestStatus.SCANNED
         return self.get_request(actual_ref)
 
-    def mark_completed(self, reference_id: str) -> Optional[DynamicPaymentRequestResponse]:
+    def mark_completed(self, reference_id: str, amount: Optional[float] = None) -> Optional[DynamicPaymentRequestResponse]:
         req = self.get_request(reference_id)
         if not req:
             return None
         actual_ref = req.reference_id
         self._requests[actual_ref]["status"] = RequestStatus.COMPLETED
+        if amount is not None and amount > 0:
+            self._requests[actual_ref]["requested_amount"] = amount
+            decimals = self._requests[actual_ref].get("currency_decimals", 2)
+            self._requests[actual_ref]["amount_in_cents"] = int(round(amount * (10 ** decimals)))
         return self.get_request(actual_ref)
 
-    def mark_completed_by_proxy(self, proxy: str) -> Optional[DynamicPaymentRequestResponse]:
+    def mark_completed_by_proxy(self, proxy: str, amount: Optional[float] = None) -> Optional[DynamicPaymentRequestResponse]:
         clean_proxy = proxy.strip().replace(" ", "").lower()
         for ref_id, rec in self._requests.items():
             if rec.get("recipient_proxy_value", "").strip().replace(" ", "").lower() == clean_proxy:
                 if rec["status"] in [RequestStatus.ACTIVE, RequestStatus.SCANNED]:
                     rec["status"] = RequestStatus.COMPLETED
+                    if amount is not None and amount > 0:
+                        rec["requested_amount"] = amount
+                        decimals = rec.get("currency_decimals", 2)
+                        rec["amount_in_cents"] = int(round(amount * (10 ** decimals)))
                     return self.get_request(ref_id)
         return None
 

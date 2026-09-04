@@ -83,7 +83,7 @@ class TransferExecuteResponse(BaseModel):
 
 
 class JourneyCancelRequest(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
     cancellation_reason: Optional[str] = "Trip Cancelled by User"
 
 

@@ -59,6 +59,7 @@ def test_signup_new_user_success():
     assert data["user"]["name"] == "Johnathan Doe"
     assert data["user"]["home_country"] == "SG"
     assert data["user"]["bic"] == "DBSGSGSG"
+    assert data["user"]["wallet_balance"] == 10000.0
     assert "access_token" in data
 
     # Verify subsequent login works with new user
