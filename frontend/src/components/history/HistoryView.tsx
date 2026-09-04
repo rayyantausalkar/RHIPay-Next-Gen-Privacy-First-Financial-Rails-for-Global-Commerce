@@ -94,7 +94,7 @@ export const HistoryView: React.FC = () => {
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-950/60 border border-white/[0.08] p-4 sm:p-5 rounded-3xl backdrop-blur-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#061420]/80 border border-white/[0.08] hover:border-emerald-500/20 p-4 sm:p-5 rounded-3xl backdrop-blur-xl shadow-xl shadow-black/30 transition-colors">
         <div>
           <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
             <History className="w-5 h-5 text-emerald-400" />

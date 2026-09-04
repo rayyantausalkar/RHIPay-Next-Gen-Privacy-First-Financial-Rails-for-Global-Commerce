@@ -18,17 +18,17 @@ export const ActionCardsHub: React.FC<ActionCardsHubProps> = ({
       <button
         type="button"
         onClick={onOpenSend}
-        className="group relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#0a1e2b] to-[#06121c] border border-cyan-500/25 hover:border-cyan-400/50 text-left shadow-lg shadow-cyan-950/20 active:scale-98 transition-all duration-200 cursor-pointer"
+        className="group relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#071d2b] to-[#041018] border border-cyan-500/20 hover:border-cyan-400/45 text-left shadow-xl shadow-cyan-950/25 active:scale-98 transition-all duration-200 cursor-pointer"
       >
         {/* Glow ambient */}
         <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-colors pointer-events-none" />
 
         <div className="relative z-10 flex flex-col justify-between h-full space-y-3">
           <div className="flex items-center justify-between">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-md group-hover:scale-105 group-hover:bg-cyan-500 group-hover:text-black transition-all">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-md group-hover:scale-105 group-hover:bg-cyan-400 group-hover:text-black transition-all">
               <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-cyan-400/80 bg-cyan-950/40 px-2 py-0.5 rounded-full border border-cyan-500/20">
+            <span className="text-[10px] font-mono font-bold text-cyan-400/90 bg-cyan-950/50 px-2.5 py-0.5 rounded-full border border-cyan-500/25">
               Instant FX
             </span>
           </div>
@@ -48,17 +48,17 @@ export const ActionCardsHub: React.FC<ActionCardsHubProps> = ({
       <button
         type="button"
         onClick={onOpenReceive}
-        className="group relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#09221a] to-[#051410] border border-emerald-500/25 hover:border-emerald-400/50 text-left shadow-lg shadow-emerald-950/20 active:scale-98 transition-all duration-200 cursor-pointer"
+        className="group relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#07241b] to-[#03130e] border border-emerald-500/20 hover:border-emerald-400/45 text-left shadow-xl shadow-emerald-950/25 active:scale-98 transition-all duration-200 cursor-pointer"
       >
         {/* Glow ambient */}
         <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-colors pointer-events-none" />
 
         <div className="relative z-10 flex flex-col justify-between h-full space-y-3">
           <div className="flex items-center justify-between">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-md group-hover:scale-105 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-md group-hover:scale-105 group-hover:bg-emerald-400 group-hover:text-black transition-all">
               <ArrowDownLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-400/80 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            <span className="text-[10px] font-mono font-bold text-emerald-400/90 bg-emerald-950/50 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
               2-Min Code
             </span>
           </div>

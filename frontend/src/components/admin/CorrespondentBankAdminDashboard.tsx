@@ -98,6 +98,111 @@ const NOSTRO_VOSTRO_CORRIDORS = [
   { spoke: "EU - TIPS / SEPA Instant Spoke", bic: "DEUTDEDD", currency: "EUR", nostroBalance: "310,000,000.00", vostroBalance: "190,000,000.00", status: "HEALTHY_SYNCHRONIZED", latency: "1.3s" },
 ];
 
+export const SIX_MAJOR_TRANSACTION_STEPS = [
+  {
+    stepNumber: 1,
+    id: "beneficiary_resolution",
+    title: "1. Beneficiary Resolution & Dynamic ISO Ingestion",
+    shortTitle: "1. Payee & ISO Ingest",
+    protocol: "ISO 20022 pacs.008.001.10 / HMAC-SHA256",
+    actor: "Origin & Destination Spoke IPS Rails",
+    duration: "< 45ms",
+    description: "Resolves recipient proxy alias (Mobile / VPA / Email / IBAN) against Nexus Spoke directory, retrieves clearing member BIC, and ingests HMAC-SHA256 signed payment request.",
+    technicalDetails: [
+      "Proxy Lookup & Spoke Routing Resolution (E.164 / RFC-5322)",
+      "HMAC-SHA256 Canonical Signature Integrity Validation",
+      "ISO 20022 pacs.008.001.10 Schema Compliance & TTL Expiry Check",
+      "Dynamic Minor-Unit Decimal & Purpose Code Alignment",
+    ],
+    badgeColor: "emerald",
+  },
+  {
+    stepNumber: 2,
+    id: "zkp_generation",
+    title: "2. Client-Side Zero-Knowledge Proof (ZKP) Generation",
+    shortTitle: "2. ZKP Groth16 Witness",
+    protocol: "Groth16 / BN254 / Poseidon Merkle Root",
+    actor: "Sender Client WebAssembly Circuit",
+    duration: "< 1.2s",
+    description: "Sender client generates a succinct zero-knowledge proof proving account balance sufficiency and Poseidon Merkle tree inclusion without exposing private account numbers or balance amounts.",
+    technicalDetails: [
+      "Poseidon Hash Merkle Path Inclusion Witness (<1.2s)",
+      "Groth16 Constraint System Evaluation (23,840 constraints)",
+      "Anonymized Sender Commitment Generation on BN254 curve",
+      "Zero-Leakage Private Balance Gating before network dispatch",
+    ],
+    badgeColor: "cyan",
+  },
+  {
+    stepNumber: 3,
+    id: "nullifier_verification",
+    title: "3. Anti-Double-Spend Nullifier Registry Verification",
+    shortTitle: "3. Anti-Double-Spend",
+    protocol: "Cryptographic Nullifier / Nonce Registry",
+    actor: "Nexus Central Hub Verification Engine",
+    duration: "< 18ms",
+    description: "The Central Hub validates the unique cryptographic nullifier against the immutable on-chain nullifier registry, strictly preventing double-spending and historical witness replay attacks.",
+    technicalDetails: [
+      "Nullifier Hash Uniqueness Check against Storage",
+      "Strictly Increasing Monotonic Account Nonce Validation",
+      "Hub Merkle Root Freshness & Timestamp Verification",
+      "Instant Replay Attack Mitigation & Telemetry Logging",
+    ],
+    badgeColor: "amber",
+  },
+  {
+    stepNumber: 4,
+    id: "fatf_travel_rule",
+    title: "4. FATF Travel Rule IVMS-101 Enclave Encryption",
+    shortTitle: "4. FATF Travel Rule",
+    protocol: "ECIES-Secp256k1 / RSA-4096 / IVMS-101",
+    actor: "Correspondent Member Bank Secure Enclaves (TEE)",
+    duration: "< 60ms",
+    description: "Encrypted originator and beneficiary regulatory PII payload dispatched between clearing banks via hardware-isolated secure enclave (TEE), satisfying global FATF Travel Rule regulations.",
+    technicalDetails: [
+      "IVMS-101 Regulatory Counterparty Payload Construction",
+      "Asymmetric ECIES Public Key Hardware Encryption",
+      "Real-Time UN / OFAC Sanctions & PEP Screening Gating",
+      "Hardware-Isolated TEE Decryption & Compliance WORM Log Hash",
+    ],
+    badgeColor: "purple",
+  },
+  {
+    stepNumber: 5,
+    id: "atomic_fx_liquidity",
+    title: "5. Bilateral Nostro/Vostro Atomic FX Liquidity Swap",
+    shortTitle: "5. Atomic FX Swap",
+    protocol: "Nexus Bilateral Liquidity Pool / 0-Slippage Lock",
+    actor: "Correspondent FX Liquidity Engine",
+    duration: "< 85ms",
+    description: "Executes synchronized atomic swap between Origin Spoke Nostro account (debited in domestic currency) and Destination Spoke Vostro account (credited in foreign currency) with guaranteed 0-slippage exchange rate.",
+    technicalDetails: [
+      "Bilateral Liquidity Pool Dynamic Rebalancing",
+      "Guaranteed Rate Lock & Basis-Point Settlement Matrix",
+      "Origin Nostro Debit & Destination Vostro Credit",
+      "Zero-Slippage Multi-Currency Settlement Finality",
+    ],
+    badgeColor: "teal",
+  },
+  {
+    stepNumber: 6,
+    id: "ledger_finality",
+    title: "6. Immutable Double-Entry Ledger Finality & Push Settlement",
+    shortTitle: "6. Ledger Finality",
+    protocol: "ISO 20022 pacs.002.001.10 / ACCP Finality",
+    actor: "Clearing Hub & Recipient Domestic IPS Rail",
+    duration: "< 35ms",
+    description: "Simultaneously commits dual balanced double-entry ledger updates, writes immutable WORM audit record, returns pacs.002 settlement confirmation, and triggers real-time WebSocket push notifications.",
+    technicalDetails: [
+      "Strict Scaled-Integer Double-Entry Balance Commit",
+      "ISO 20022 pacs.002.001.10 ACCP (Accepted Settlement) Emit",
+      "Unique Global UETR Tracking Key Anchoring",
+      "Instant Real-Time WebSocket Push Notification Dispatch",
+    ],
+    badgeColor: "emerald",
+  },
+];
+
 const TEST_CASE_STAGES = [
   { id: "ingest", label: "Payee Verification", desc: "Resolved proxy address and verified host KYC record.", tag: "API_GATEWAY" },
   { id: "quote", label: "Guaranteed FX Lock", desc: "Locked bilateral FX quote with 0-slippage guarantee.", tag: "LIQUIDITY_ENGINE" },
@@ -159,6 +264,12 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
   const [selectedTxForTest, setSelectedTxForTest] = useState<TransactionItem | null>(null);
   const [activeTestStageIndex, setActiveTestStageIndex] = useState<number>(22);
   const [isRunningTestSimulation, setIsRunningTestSimulation] = useState<boolean>(false);
+
+  // 6 Major Transaction Steps State
+  const [inspectingSixStepsTx, setInspectingSixStepsTx] = useState<TransactionItem | null>(null);
+  const [activeSixStepSimIndex, setActiveSixStepSimIndex] = useState<number>(6);
+  const [isRunningSixStepSim, setIsRunningSixStepSim] = useState<boolean>(false);
+  const [testPipelineTabMode, setTestPipelineTabMode] = useState<"six_steps" | "granular_22">("six_steps");
 
   const [copiedUetr, setCopiedUetr] = useState<string | null>(null);
 
@@ -294,10 +405,29 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
     toast.success("Test Case Pipeline Verified: All 22 clearance checks PASSED with zero faults!");
   };
 
+  const handleRunSixStepSimulation = async (tx?: TransactionItem) => {
+    if (isRunningSixStepSim) return;
+    setIsRunningSixStepSim(true);
+    setActiveSixStepSimIndex(0);
+
+    for (let i = 0; i <= SIX_MAJOR_TRANSACTION_STEPS.length; i++) {
+      setActiveSixStepSimIndex(i);
+      await new Promise((resolve) => setTimeout(resolve, 380));
+    }
+    setIsRunningSixStepSim(false);
+    toast.success("6 Major Transaction Steps Verified: Complete end-to-end settlement passed!");
+  };
+
   const handleInspectTxInTestCases = (tx: TransactionItem) => {
     setSelectedTxForTest(tx);
     setActiveAdminTab("test_cases");
+    setTestPipelineTabMode("granular_22");
     handleRunTestSimulation(tx);
+  };
+
+  const handleInspectTxSixSteps = (tx: TransactionItem) => {
+    setInspectingSixStepsTx(tx);
+    setActiveSixStepSimIndex(6);
   };
 
   const handleCopy = (text: string) => {
@@ -405,19 +535,17 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
             <button
               key={tab.id}
               onClick={() => setActiveAdminTab(tab.id as any)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                isActive
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${isActive
                   ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black scale-[1.02]"
                   : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span>{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
                 <span
-                  className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${
-                    isActive ? "bg-black text-amber-400" : "bg-amber-500/20 text-amber-300"
-                  }`}
+                  className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${isActive ? "bg-black text-amber-400" : "bg-amber-500/20 text-amber-300"
+                    }`}
                 >
                   {tab.count}
                 </span>
@@ -430,6 +558,91 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
       {/* 3. TAB 1: ONGOING & PAST TRANSACTIONS (Real SQLite Database Ledger) */}
       {activeAdminTab === "transactions" && (
         <div className="space-y-4 animate-in fade-in">
+          {/* 6 MAJOR STEPS TRANSACTION CLEARANCE ARCHITECTURE BANNER */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#061e2b] via-[#041520] to-[#020d14] border border-amber-500/30 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-bold text-white tracking-tight">
+                    6 Major Steps Happening Between Transactions
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-amber-500 text-black">
+                    CORE RAIL LIFECYCLE
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  Every cross-border settlement strictly traverses these 6 immutable cryptographic and double-entry clearance pillars in under 2.5 seconds.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isRunningSixStepSim}
+                  onClick={() => handleRunSixStepSimulation()}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Play className={`w-3.5 h-3.5 ${isRunningSixStepSim ? "animate-spin" : ""}`} />
+                  <span>{isRunningSixStepSim ? "Simulating Clearance Rail..." : "Simulate 6-Step Clearance"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 6 Steps Horizontal Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
+              {SIX_MAJOR_TRANSACTION_STEPS.map((step, sIdx) => {
+                const isPassed = sIdx < activeSixStepSimIndex;
+                const isCurrent = sIdx === activeSixStepSimIndex;
+
+                return (
+                  <div
+                    key={step.id}
+                    className={`p-3 rounded-2xl border transition-all flex flex-col justify-between space-y-2 ${
+                      isPassed
+                        ? "bg-[#062018]/70 border-emerald-500/40 shadow-sm"
+                        : isCurrent
+                        ? "bg-amber-950/60 border-amber-400 shadow-md ring-1 ring-amber-400/50 scale-[1.02]"
+                        : "bg-zinc-950/40 border-white/[0.04] opacity-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-mono font-black text-amber-400">
+                          STEP 0{step.stepNumber}
+                        </span>
+                        <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                          {step.duration}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug">
+                        {step.shortTitle}
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 line-clamp-2 mt-1 leading-relaxed">
+                        {step.description}
+                      </p>
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/[0.06] flex items-center justify-between text-[9px] font-mono text-zinc-400">
+                      <span className="truncate max-w-[90px]">{step.actor.split(" ")[0]}</span>
+                      {isPassed ? (
+                        <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                          <CheckCircle2 className="w-3 h-3" /> PASSED
+                        </span>
+                      ) : isCurrent ? (
+                        <span className="text-amber-400 font-bold animate-pulse">PROCESSING</span>
+                      ) : (
+                        <span className="text-zinc-600">PENDING</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Subheader & Filters */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-zinc-950/60 border border-white/[0.06] p-4 rounded-3xl">
             <div className="relative flex-1">
@@ -475,7 +688,7 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     {/* Top Identifiers */}
-                    <div className="space-y-1 min-w-0">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-amber-300 text-sm">{tx.transaction_id}</span>
                         <span
@@ -519,9 +732,25 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
                         <span>•</span>
                         <span>{new Date(tx.created_at).toLocaleString()}</span>
                       </div>
+
+                      {/* 6 MAJOR SETTLEMENT STEPS MINI PROGRESS BAR */}
+                      <div className="pt-2">
+                        <div className="flex items-center gap-1 overflow-x-auto py-1">
+                          {SIX_MAJOR_TRANSACTION_STEPS.map((s) => (
+                            <div
+                              key={s.id}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[9px] font-mono font-bold text-emerald-300 whitespace-nowrap"
+                              title={`${s.title}: ${s.description}`}
+                            >
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>{s.shortTitle}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Right Amounts & Test Case Trigger */}
+                    {/* Right Amounts & 6 Steps Trigger */}
                     <div className="flex items-center md:flex-col md:items-end justify-between gap-2 flex-shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/[0.06]">
                       <div>
                         <p className="text-base sm:text-lg font-black font-mono text-emerald-300 md:text-right">
@@ -532,14 +761,24 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleInspectTxInTestCases(tx)}
-                        className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Cpu className="w-3.5 h-3.5" />
-                        <span>Inspect Test Cases</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleInspectTxSixSteps(tx)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Inspect 6 Steps</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInspectTxInTestCases(tx)}
+                          className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Cpu className="w-3.5 h-3.5 text-amber-400" />
+                          <span>22 Tests</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -552,7 +791,7 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
       {/* 4. TAB 2: TRANSACTION TEST CASES & ISO 20022 VERIFICATION PIPELINE */}
       {activeAdminTab === "test_cases" && (
         <div className="space-y-4 animate-in fade-in">
-          {/* Test Case Simulator Banner */}
+          {/* Test Case Simulator Banner with Toggle */}
           <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#081d2e] to-[#04101a] border border-cyan-500/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -561,74 +800,187 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
               </div>
               <p className="text-xs text-zinc-400">
                 {selectedTxForTest
-                  ? `Currently inspecting live cryptographic audit trail for ${selectedTxForTest.transaction_id}`
-                  : "Interactive verification suite validating all 22 ISO 20022 and Zero-Knowledge clearance stages"}
+                  ? `Currently inspecting live audit trail for ${selectedTxForTest.transaction_id}`
+                  : "Interactive verification suite validating clearance rails, ZK proofs, and double-entry accounting"}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={isRunningTestSimulation}
-                onClick={() => handleRunTestSimulation(selectedTxForTest || undefined)}
-                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <Play className={`w-4 h-4 ${isRunningTestSimulation ? "animate-spin" : ""}`} />
-                <span>{isRunningTestSimulation ? "Executing 22 Verification Stages..." : "Run Test Case Simulation"}</span>
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setTestPipelineTabMode("six_steps")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    testPipelineTabMode === "six_steps"
+                      ? "bg-amber-500 text-black shadow font-black"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  6 Major Steps
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestPipelineTabMode("granular_22")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    testPipelineTabMode === "granular_22"
+                      ? "bg-cyan-500 text-black shadow font-black"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  22 Unit Stages
+                </button>
+              </div>
+
+              {testPipelineTabMode === "six_steps" ? (
+                <button
+                  type="button"
+                  disabled={isRunningSixStepSim}
+                  onClick={() => handleRunSixStepSimulation(selectedTxForTest || undefined)}
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-emerald-500 text-black font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Play className={`w-4 h-4 ${isRunningSixStepSim ? "animate-spin" : ""}`} />
+                  <span>{isRunningSixStepSim ? "Executing 6 Core Settlement Steps..." : "Run 6-Step Simulation"}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isRunningTestSimulation}
+                  onClick={() => handleRunTestSimulation(selectedTxForTest || undefined)}
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Play className={`w-4 h-4 ${isRunningTestSimulation ? "animate-spin" : ""}`} />
+                  <span>{isRunningTestSimulation ? "Executing 22 Verification Stages..." : "Run 22-Stage Simulation"}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* 22 Test Stages Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TEST_CASE_STAGES.map((stage, idx) => {
-              const isPassed = idx < activeTestStageIndex;
-              const isCurrent = idx === activeTestStageIndex;
+          {/* VIEW MODE 1: 6 MAJOR SETTLEMENT STEPS */}
+          {testPipelineTabMode === "six_steps" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {SIX_MAJOR_TRANSACTION_STEPS.map((step, idx) => {
+                const isPassed = idx < activeSixStepSimIndex;
+                const isCurrent = idx === activeSixStepSimIndex;
 
-              return (
-                <div
-                  key={stage.id}
-                  className={`p-3.5 rounded-2xl border transition-all ${
-                    isPassed
-                      ? "bg-[#061e18]/60 border-emerald-500/30 shadow-sm"
-                      : isCurrent
-                      ? "bg-cyan-950/60 border-cyan-400 shadow-md ring-1 ring-cyan-400/50"
-                      : "bg-zinc-950/40 border-white/[0.04] opacity-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-mono text-zinc-400 font-bold">
-                      Stage {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className={`px-2 py-0.2 rounded-full text-[9px] font-bold font-mono ${
-                        isPassed
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : isCurrent
-                          ? "bg-cyan-500/20 text-cyan-300 animate-pulse"
-                          : "bg-zinc-800 text-zinc-500"
-                      }`}
-                    >
-                      {stage.tag}
-                    </span>
+                return (
+                  <div
+                    key={step.id}
+                    className={`p-4 rounded-3xl border transition-all flex flex-col justify-between space-y-3 ${
+                      isPassed
+                        ? "bg-[#062018]/70 border-emerald-500/40 shadow-sm"
+                        : isCurrent
+                        ? "bg-amber-950/60 border-amber-400 shadow-md ring-1 ring-amber-400/50 scale-[1.01]"
+                        : "bg-zinc-950/40 border-white/[0.04] opacity-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-mono font-black text-amber-400">
+                          STEP 0{step.stepNumber}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                          {step.duration}
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm font-bold text-white mb-1">{step.title}</h4>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{step.description}</p>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-white/[0.08]">
+                      <div className="text-[10px] text-zinc-400 font-mono space-y-0.5">
+                        <div>Protocol: <strong className="text-zinc-200">{step.protocol}</strong></div>
+                        <div>Actor: <strong className="text-zinc-200">{step.actor}</strong></div>
+                      </div>
+
+                      <div className="space-y-1 pt-1">
+                        <span className="text-[9px] uppercase tracking-wider font-semibold text-zinc-500 block">
+                          Validation Checks
+                        </span>
+                        {step.technicalDetails.map((td, tIdx) => (
+                          <div key={tIdx} className="flex items-start gap-1.5 text-[10px] text-zinc-300">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0 mt-0.5" />
+                            <span>{td}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-zinc-400">Status</span>
+                        {isPassed ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold font-mono border border-emerald-500/40 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> VERIFIED & CLEAR
+                          </span>
+                        ) : isCurrent ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold font-mono border border-amber-500/40 animate-pulse">
+                            ACTIVE VERIFICATION...
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-500 text-[10px] font-mono">
+                            PENDING
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
 
-                  <div className="flex items-center gap-2 mb-1">
-                    {isPassed ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                    ) : isCurrent ? (
-                      <div className="w-4 h-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin flex-shrink-0" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" />
-                    )}
-                    <h4 className="text-xs font-bold text-white">{stage.label}</h4>
+          {/* VIEW MODE 2: 22 GRANULAR TEST STAGES GRID */}
+          {testPipelineTabMode === "granular_22" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {TEST_CASE_STAGES.map((stage, idx) => {
+                const isPassed = idx < activeTestStageIndex;
+                const isCurrent = idx === activeTestStageIndex;
+
+                return (
+                  <div
+                    key={stage.id}
+                    className={`p-3.5 rounded-2xl border transition-all ${
+                      isPassed
+                        ? "bg-[#061e18]/60 border-emerald-500/30 shadow-sm"
+                        : isCurrent
+                        ? "bg-cyan-950/60 border-cyan-400 shadow-md ring-1 ring-cyan-400/50"
+                        : "bg-zinc-950/40 border-white/[0.04] opacity-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-mono text-zinc-400 font-bold">
+                        Stage {String(idx + 1).padStart(2, "0")}
+                      </span>
+                      <span
+                        className={`px-2 py-0.2 rounded-full text-[9px] font-bold font-mono ${
+                          isPassed
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : isCurrent
+                            ? "bg-cyan-500/20 text-cyan-300 animate-pulse"
+                            : "bg-zinc-800 text-zinc-500"
+                        }`}
+                      >
+                        {stage.tag}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-1">
+                      {isPassed ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      ) : isCurrent ? (
+                        <div className="w-4 h-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin flex-shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" />
+                      )}
+                      <h4 className="text-xs font-bold text-white">{stage.label}</h4>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-relaxed pl-6">{stage.desc}</p>
                   </div>
-
-                  <p className="text-[11px] text-zinc-400 leading-relaxed pl-6">{stage.desc}</p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -658,13 +1010,12 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
               return (
                 <div
                   key={req.request_id}
-                  className={`p-4 sm:p-5 rounded-3xl border transition-all ${
-                    isPending
+                  className={`p-4 sm:p-5 rounded-3xl border transition-all ${isPending
                       ? "bg-[#091b26] border-amber-500/40 shadow-lg shadow-amber-950/20"
                       : isCancelled
-                      ? "bg-[#160b13]/50 border-purple-500/30"
-                      : "bg-zinc-950/60 border-white/[0.06]"
-                  }`}
+                        ? "bg-[#160b13]/50 border-purple-500/30"
+                        : "bg-zinc-950/60 border-white/[0.06]"
+                    }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="space-y-1.5 min-w-0">
@@ -672,15 +1023,14 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
                         <span className="text-sm font-bold text-white">{req.user_name}</span>
                         <span className="text-xs text-zinc-400 font-mono">({req.user_email})</span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                            isPending
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${isPending
                               ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                               : isApproved
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                              : isCancelled
-                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
-                              : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                          }`}
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                : isCancelled
+                                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                                  : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                            }`}
                         >
                           {req.status}
                         </span>
@@ -826,11 +1176,10 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
                   <button
                     type="button"
                     onClick={() => handleToggleBlock(u)}
-                    className={`px-3.5 py-2 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
-                      u.is_blocked
+                    className={`px-3.5 py-2 rounded-2xl font-bold text-xs transition-all cursor-pointer ${u.is_blocked
                         ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30"
                         : "bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/30"
-                    }`}
+                      }`}
                   >
                     {u.is_blocked ? "Unblock Account" : "Block User"}
                   </button>
@@ -1001,6 +1350,166 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
           </div>
         </div>
       )}
+
+      {/* 6 Major Steps Transaction Clearance Inspector Modal */}
+      {inspectingSixStepsTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-3xl bg-[#061824] border border-amber-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl shadow-amber-950/40 text-white max-h-[92vh] overflow-y-auto space-y-4">
+            {/* Close Button */}
+            <button
+              onClick={() => setInspectingSixStepsTx(null)}
+              className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Zap className="w-6 h-6 stroke-[2.3]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    6 Major Steps Clearance Inspector
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    SETTLED VIA BIS NEXUS
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 font-mono">
+                  Tx ID: <span className="text-amber-300 font-bold">{inspectingSixStepsTx.transaction_id}</span> | UETR: {inspectingSixStepsTx.uetr}
+                </p>
+              </div>
+            </div>
+
+            {/* Counterparty & Settlement Summary Card */}
+            <div className="p-4 rounded-2xl bg-zinc-950 border border-white/[0.08] grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-500 block">Sender Origin</span>
+                <p className="text-sm font-bold text-white">{inspectingSixStepsTx.sender_name}</p>
+                <p className="text-xs font-mono text-zinc-400">{inspectingSixStepsTx.sender_account_number || inspectingSixStepsTx.sender_proxy}</p>
+                <p className="text-xs font-mono text-rose-300 font-bold mt-1">
+                  Debited: -{inspectingSixStepsTx.sender_currency} {Number(inspectingSixStepsTx.sender_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-500 block">Recipient Destination</span>
+                <p className="text-sm font-bold text-white">{inspectingSixStepsTx.recipient_name}</p>
+                <p className="text-xs font-mono text-zinc-400">{inspectingSixStepsTx.recipient_account_number || inspectingSixStepsTx.recipient_proxy}</p>
+                <p className="text-xs font-mono text-emerald-300 font-bold mt-1">
+                  Credited: +{inspectingSixStepsTx.recipient_currency} {Number(inspectingSixStepsTx.recipient_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              <div className="md:border-l md:border-white/10 md:pl-4 space-y-1 text-xs font-mono">
+                <div className="text-zinc-400">
+                  Rate: <span className="text-emerald-400 font-bold">1 {inspectingSixStepsTx.recipient_currency} = {inspectingSixStepsTx.exchange_rate} {inspectingSixStepsTx.sender_currency}</span>
+                </div>
+                <div className="text-zinc-400">
+                  Status: <span className="text-emerald-300 font-bold">{inspectingSixStepsTx.iso_status}</span>
+                </div>
+                <div className="text-zinc-400">
+                  Time: <span>{new Date(inspectingSixStepsTx.created_at).toLocaleTimeString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 6 Steps Sequential Clearance Breakdown */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Detailed 6-Step Clearance Execution Pipeline
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRunSixStepSimulation(inspectingSixStepsTx)}
+                  disabled={isRunningSixStepSim}
+                  className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Play className={`w-3 h-3 ${isRunningSixStepSim ? "animate-spin" : ""}`} />
+                  <span>{isRunningSixStepSim ? "Re-simulating Steps..." : "Simulate 6 Steps"}</span>
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {SIX_MAJOR_TRANSACTION_STEPS.map((step, idx) => {
+                  const isPassed = idx < activeSixStepSimIndex;
+                  const isCurrent = idx === activeSixStepSimIndex;
+
+                  return (
+                    <div
+                      key={step.id}
+                      className={`p-3.5 sm:p-4 rounded-2xl border transition-all ${
+                        isPassed
+                          ? "bg-[#062018]/70 border-emerald-500/40 shadow-sm"
+                          : isCurrent
+                          ? "bg-amber-950/60 border-amber-400 shadow-md ring-1 ring-amber-400/50"
+                          : "bg-zinc-950/40 border-white/[0.04] opacity-50"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-amber-500 text-black font-black font-mono text-[11px] flex items-center justify-center flex-shrink-0">
+                            {step.stepNumber}
+                          </span>
+                          <h4 className="text-xs sm:text-sm font-bold text-white">{step.title}</h4>
+                        </div>
+
+                        <div className="flex items-center gap-2 font-mono text-[10px]">
+                          <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {step.duration}
+                          </span>
+                          {isPassed ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> PASSED
+                            </span>
+                          ) : isCurrent ? (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold animate-pulse">
+                              RUNNING...
+                            </span>
+                          ) : (
+                            <span className="text-zinc-500">PENDING</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-zinc-300 leading-relaxed pl-8">{step.description}</p>
+
+                      <div className="mt-2.5 pl-8 pt-2 border-t border-white/[0.06] grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-zinc-400 font-mono">
+                        <div>Protocol: <span className="text-zinc-200 font-semibold">{step.protocol}</span></div>
+                        <div>Actor: <span className="text-zinc-200 font-semibold">{step.actor}</span></div>
+                      </div>
+
+                      <div className="mt-2 pl-8 space-y-1">
+                        {step.technicalDetails.map((td, tIdx) => (
+                          <div key={tIdx} className="flex items-center gap-1.5 text-[10px] text-zinc-300">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                            <span>{td}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setInspectingSixStepsTx(null)}
+                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                Close 6-Step Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

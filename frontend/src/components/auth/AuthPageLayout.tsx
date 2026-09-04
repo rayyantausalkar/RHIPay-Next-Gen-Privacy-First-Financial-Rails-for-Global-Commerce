@@ -2,7 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 
 interface AuthPageLayoutProps {
@@ -32,19 +33,21 @@ export const AuthPageLayout: React.FC<AuthPageLayoutProps> = ({ initialMode }) =
             <span>Home</span>
           </Link>
 
-          {/* Single Clean RHI Pay Logo with Slogan */}
+          {/* Single Clean RHI Pay Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1F7A63] to-[#10B981] flex items-center justify-center shadow-lg shadow-emerald-500/25 ring-1 ring-emerald-300/40 group-hover:scale-105 transition-transform">
-              <ShieldCheck className="w-4.5 h-4.5 text-black stroke-[2.5]" />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Image
+                src="/rhi_without_bg.svg"
+                alt="RHI Pay Logo"
+                width={32}
+                height={32}
+                className="w-8 h-8 object-contain drop-shadow-[0_0_10px_rgba(16,185,129,0.35)]"
+                priority
+              />
             </div>
-            <div className="text-left">
-              <span className="text-base font-black tracking-tight text-white group-hover:text-emerald-300 transition-colors">
-                RHI Pay
-              </span>
-              <p className="text-[10px] text-zinc-400 font-mono -mt-0.5">
-                Next-Gen Global Financial Rails
-              </p>
-            </div>
+            <span className="text-base font-black tracking-tight text-white group-hover:text-emerald-300 transition-colors">
+              RHI Pay
+            </span>
           </Link>
 
           {/* Spacer for symmetrical balance */}
@@ -56,7 +59,7 @@ export const AuthPageLayout: React.FC<AuthPageLayoutProps> = ({ initialMode }) =
 
         {/* Minimal Footer */}
         <div className="mt-6 text-center text-xs text-zinc-500">
-          <p>© 2026 RHI Pay • Next-Gen Privacy-First Financial Rails</p>
+          <p>© 2026 RHI Pay</p>
         </div>
       </div>
     </div>

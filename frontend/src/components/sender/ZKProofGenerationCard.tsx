@@ -24,7 +24,6 @@ import {
 } from "@/types/payment";
 import { generateZKProof } from "@/lib/api";
 import { toast } from "sonner";
-import confetti from "canvas-confetti";
 
 interface ZKProofGenerationCardProps {
   quote: FXQuoteResponse;
@@ -79,15 +78,8 @@ export const ZKProofGenerationCard: React.FC<ZKProofGenerationCardProps> = ({
         setProofResult(result);
         setIsGenerating(false);
 
-        toast.success("ZK-SNARK Membership Proof Generated!", {
+        toast.success("ZK-SNARK Proof Generated", {
           description: `Execution benchmark: ${result.generation_time_ms}ms (<1.2s Target)`,
-        });
-
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ["#10b981", "#34d399", "#059669"],
         });
       } catch (err: unknown) {
         if (!isMounted) return;

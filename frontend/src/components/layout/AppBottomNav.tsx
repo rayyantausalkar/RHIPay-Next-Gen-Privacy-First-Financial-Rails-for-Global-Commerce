@@ -30,11 +30,10 @@ export const AppBottomNav: React.FC<AppBottomNavProps> = ({
               key={tab.id}
               type="button"
               onClick={() => onSelectTab(tab.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all duration-200 cursor-pointer active:scale-95 ${
-                isActive
+              className={`flex-1 flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all duration-200 cursor-pointer active:scale-95 ${isActive
                   ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold shadow-lg shadow-emerald-500/30 scale-102"
                   : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
-              }`}
+                }`}
             >
               <Icon className="w-5 h-5 stroke-[2.2]" />
               <span className="text-[11px] font-semibold mt-0.5 tracking-tight">{tab.label}</span>

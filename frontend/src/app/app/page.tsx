@@ -7,7 +7,6 @@ import { useAuth } from "@/context/AuthContext";
 import { AppTopNavbar } from "@/components/layout/AppTopNavbar";
 import { AppBottomNav } from "@/components/layout/AppBottomNav";
 import { HomeHeaderInfo } from "@/components/home/HomeHeaderInfo";
-import { CreativeHeroBanner } from "@/components/home/CreativeHeroBanner";
 import { ActionCardsHub } from "@/components/home/ActionCardsHub";
 import { FinancialGridBox } from "@/components/home/FinancialGridBox";
 import { RecentTransactionsFeed } from "@/components/home/RecentTransactionsFeed";
@@ -72,6 +71,11 @@ export default function AppPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#040D14] text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-200 pb-24 sm:pb-28">
+      {/* Background Mesh & Ambient Glow for theme continuity with auth */}
+      <div className="fixed inset-0 bg-mesh-pattern pointer-events-none opacity-30 z-0" />
+      <div className="fixed inset-0 bg-grid-lines pointer-events-none opacity-15 z-0" />
+      <div className="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[140px] pointer-events-none" />
+
       {/* 1. Top Navbar: RHI Pay Brand, Notification Drawer, Profile Avatar */}
       <AppTopNavbar
         activeTab={activeTab}
@@ -80,7 +84,7 @@ export default function AppPage() {
       />
 
       {/* 2. Main Responsive Stage */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
+      <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
         {/* VIEW 1: HOME SCREEN (Default Post-Login Interface) */}
         {activeTab === "home" && (
           <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
@@ -89,9 +93,6 @@ export default function AppPage() {
               activeJourney={activeJourney}
               onOpenJourneyModal={() => setIsJourneyOpen(true)}
             />
-
-            {/* Creative Minimal Decorative Element */}
-            <CreativeHeroBanner />
 
             {/* Side-by-Side Action Cards: Send Money & Receive Money */}
             <ActionCardsHub
@@ -127,6 +128,10 @@ export default function AppPage() {
       <ModernSendModal
         isOpen={isSendOpen}
         onClose={() => setIsSendOpen(false)}
+        onOpenJourneyModal={() => {
+          setIsSendOpen(false);
+          setIsJourneyOpen(true);
+        }}
         onPaymentCompleted={() => {
           setIsSendOpen(false);
           refreshUser();

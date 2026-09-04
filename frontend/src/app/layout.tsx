@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "RHI Pay Nexus — Instant Cross-Border P2P Settlement & ZKP Privacy",
   description:
     "BIS Nexus Hub-and-Spoke Instant P2P Payment System with Zero-Knowledge Proof Privacy.",
+  icons: {
+    icon: "/rhi_without_bg.svg",
+    shortcut: "/rhi_without_bg.svg",
+    apple: "/rhi_without_bg.svg",
+  },
 };
 
 export default function RootLayout({

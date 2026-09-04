@@ -54,7 +54,7 @@ export const HomeHeaderInfo: React.FC<HomeHeaderInfoProps> = ({
   const destCountry = activeJourney?.destination_country || user.active_journey_country;
 
   return (
-    <div className="w-full bg-zinc-950/60 border border-white/[0.08] rounded-3xl p-3 sm:p-4 backdrop-blur-xl shadow-lg">
+    <div className="w-full bg-[#061420]/80 border border-white/[0.08] hover:border-emerald-500/20 rounded-3xl p-3 sm:p-4 backdrop-blur-xl shadow-xl shadow-black/30 transition-colors">
       <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
         {/* Left: Home Country & Selected Bank (Unchangeable) */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">

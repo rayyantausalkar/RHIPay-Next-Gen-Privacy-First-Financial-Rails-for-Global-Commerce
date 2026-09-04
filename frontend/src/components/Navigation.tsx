@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ArrowDownLeft, ArrowUpRight, Activity, ArrowLeft, LogOut, User } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Activity, ArrowLeft, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
@@ -62,8 +63,15 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Brand Logo (Stays in App) */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link href="/app" className="flex items-center gap-2 sm:gap-3 min-w-0 group">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40 flex-shrink-0 group-hover:scale-105 transition-transform">
-                <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5]" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                <Image
+                  src="/rhi_without_bg.svg"
+                  alt="RHI Pay Logo"
+                  width={40}
+                  height={40}
+                  className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]"
+                  priority
+                />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">

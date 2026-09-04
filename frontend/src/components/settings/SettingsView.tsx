@@ -38,7 +38,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="bg-zinc-950/60 border border-white/[0.08] p-4 sm:p-5 rounded-3xl backdrop-blur-xl">
+      <div className="bg-[#061420]/80 border border-white/[0.08] hover:border-emerald-500/20 p-4 sm:p-5 rounded-3xl backdrop-blur-xl shadow-xl shadow-black/30 transition-colors">
         <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
           <Settings className="w-5 h-5 text-emerald-400" />
           <span>Account Settings & Security</span>
@@ -47,7 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
       </div>
 
       {/* Settings Options Group */}
-      <div className="bg-zinc-950/60 border border-white/[0.08] rounded-3xl p-2 sm:p-3 backdrop-blur-xl divide-y divide-white/[0.05]">
+      <div className="bg-[#061420]/80 border border-white/[0.08] hover:border-emerald-500/20 rounded-3xl p-2 sm:p-3 backdrop-blur-xl divide-y divide-white/[0.05] shadow-xl shadow-black/30 transition-colors">
         {/* 1. Notifications Toggle */}
         <div className="p-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">

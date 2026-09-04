@@ -14,7 +14,6 @@ import {
 import { DynamicPaymentRequestResponse, RequestStatus } from "@/types/payment";
 import { getPaymentRequest } from "@/lib/api";
 import { toast } from "sonner";
-import confetti from "canvas-confetti";
 
 interface QRPresenterCardProps {
   request: DynamicPaymentRequestResponse;
@@ -65,13 +64,8 @@ export const QRPresenterCard: React.FC<QRPresenterCardProps> = ({
               description: "Verifying ZKP Merkle proof on Hub...",
             });
           } else if (updated.status === "COMPLETED") {
-            toast.success("Payment Settled Instantly via Nexus Hub!", {
-              description: `Received ${updated.requested_amount} ${updated.destination_currency}`,
-            });
-            confetti({
-              particleCount: 80,
-              spread: 70,
-              origin: { y: 0.6 },
+            toast.success("Payment Settled Instantly", {
+              description: `Received ${updated.requested_amount} ${updated.destination_currency} via Nexus Hub`,
             });
           }
         }

@@ -13,7 +13,6 @@ import {
 import { DynamicPaymentRequestResponse, RequestStatus } from "@/types/payment";
 import { getPaymentRequest, markRequestScanned, completePaymentRequest } from "@/lib/api";
 import { toast } from "sonner";
-import confetti from "canvas-confetti";
 
 interface ConsumerQRPresenterProps {
   request: DynamicPaymentRequestResponse;
@@ -67,14 +66,8 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
             payload.status === "COMPLETED"
           ) {
             setRequest((prev) => ({ ...prev, status: "COMPLETED" }));
-            toast.success("Payment Received & Cleared Instantly!", {
+            toast.success("Payment Received & Cleared", {
               description: `Credited ${Number(request.requested_amount).toFixed(request.currency_decimals ?? 2)} ${request.destination_currency} via Host IPS`,
-            });
-            confetti({
-              particleCount: 120,
-              spread: 80,
-              origin: { y: 0.6 },
-              colors: ["#10b981", "#34d399", "#059669", "#ffffff"],
             });
           }
         } catch {
@@ -106,14 +99,8 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
               description: "Verifying zero-knowledge proof on Nexus Hub...",
             });
           } else if (updated.status === "COMPLETED") {
-            toast.success("Payment Received & Settled!", {
+            toast.success("Payment Received & Settled", {
               description: `Credited ${Number(updated.requested_amount).toFixed(updated.currency_decimals ?? 2)} ${updated.destination_currency}`,
-            });
-            confetti({
-              particleCount: 100,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ["#10b981", "#34d399", "#059669", "#ffffff"],
             });
           }
         }
@@ -159,14 +146,8 @@ export const ConsumerQRPresenter: React.FC<ConsumerQRPresenterProps> = ({
         const updated = await getPaymentRequest(request.reference_id);
         setRequest(updated);
         toast.dismiss("sim");
-        toast.success("Settlement Complete!", {
+        toast.success("Settlement Complete", {
           description: `Credited ${Number(updated.requested_amount).toFixed(updated.currency_decimals ?? 2)} ${updated.destination_currency}`,
-        });
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ["#10b981", "#34d399", "#059669", "#ffffff"],
         });
         setIsSimulating(false);
       }, 1500);

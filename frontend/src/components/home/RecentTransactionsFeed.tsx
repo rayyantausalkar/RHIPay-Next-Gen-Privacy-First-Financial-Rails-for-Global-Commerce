@@ -74,7 +74,7 @@ export const RecentTransactionsFeed: React.FC<RecentTransactionsFeedProps> = ({
 
   return (
     <>
-      <div className="w-full bg-zinc-950/60 border border-white/[0.08] rounded-3xl p-4 sm:p-5 backdrop-blur-xl shadow-lg">
+      <div className="w-full bg-[#061420]/80 border border-white/[0.08] hover:border-emerald-500/20 rounded-3xl p-4 sm:p-5 backdrop-blur-xl shadow-xl shadow-black/30 transition-colors">
         {/* Header */}
         <div className="flex items-center justify-between mb-3.5">
           <div>

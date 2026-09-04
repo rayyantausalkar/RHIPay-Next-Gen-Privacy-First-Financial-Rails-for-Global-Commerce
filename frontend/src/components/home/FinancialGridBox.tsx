@@ -119,7 +119,7 @@ export const FinancialGridBox: React.FC = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 w-full">
         {/* Box 1: Check Balance (Secured with UPI PIN) */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#081520] to-[#040e16] border border-white/[0.08] shadow-lg flex flex-col justify-between relative overflow-hidden">
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#06181e] to-[#030e14] border border-white/[0.08] hover:border-emerald-500/25 shadow-xl shadow-black/30 flex flex-col justify-between relative overflow-hidden transition-colors">
           {/* Subtle glow */}
           <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
 
@@ -212,7 +212,7 @@ export const FinancialGridBox: React.FC = () => {
         </div>
 
         {/* Box 2: Live Forex Rates (Sticky to selected travel corridor if active) */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#071724] to-[#040e17] border border-white/[0.08] shadow-lg flex flex-col justify-between relative overflow-hidden">
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#061822] to-[#030e15] border border-white/[0.08] hover:border-cyan-500/25 shadow-xl shadow-black/30 flex flex-col justify-between relative overflow-hidden transition-colors">
           {/* Subtle glow */}
           <div className="absolute top-0 right-0 w-28 h-28 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
 
@@ -275,9 +275,8 @@ export const FinancialGridBox: React.FC = () => {
                 GLOBAL_FOREX_PAIRS.slice(0, 5).map((_, idx) => (
                   <div
                     key={idx}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      idx === activeForexIndex % 5 ? "bg-cyan-400 scale-125" : "bg-white/10"
-                    }`}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${idx === activeForexIndex % 5 ? "bg-cyan-400 scale-125" : "bg-white/10"
+                      }`}
                   />
                 ))
               )}

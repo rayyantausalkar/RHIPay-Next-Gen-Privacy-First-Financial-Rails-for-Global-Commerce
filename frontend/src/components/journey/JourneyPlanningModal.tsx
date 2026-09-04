@@ -213,9 +213,11 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
     try {
       const res = await cancelJourney(user.id, "Trip Cancelled by User");
       if (res.success && res.data) {
-        toast.success("Travel Journey Cancelled", {
-          description: res.data.message,
+        toast.success("Travel Journey Cancelled & Refunded", {
+          description: res.data.message || `Net refund credited to ${user.bank_name}`,
         });
+        setExistingJourney(null);
+        setShowCancelConfirm(false);
         await refreshUser();
         await fetchNotifications();
         onJourneyUpdated?.();
@@ -230,6 +232,18 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
     }
   };
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isCancelling && !isSubmitting) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isCancelling, isSubmitting, onClose]);
+
   if (!isOpen) return null;
 
   const isApprovedJourney = existingJourney?.status === "APPROVED" || Boolean(user?.active_journey_country);
@@ -237,9 +251,34 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   const activeDestCountry = user?.active_journey_country || existingJourney?.destination_country;
   const activeDestCountryObj = DESTINATION_COUNTRIES.find((c) => c.code === activeDestCountry);
 
+  // Dynamic Destination FX Rate for Refund
+  const getDestRate = () => {
+    if (existingJourney?.exchange_rate && existingJourney.exchange_rate > 0) {
+      return existingJourney.exchange_rate;
+    }
+    const rates: Record<string, number> = {
+      USD: 1.0,
+      SGD: 1.345,
+      INR: 86.85,
+      AED: 3.6725,
+      GBP: 0.785,
+      EUR: 0.925,
+      JPY: 153.2,
+      THB: 34.5,
+      MYR: 4.45,
+      AUD: 1.54,
+      CAD: 1.39,
+      BRL: 5.75,
+    };
+    const homeRate = rates[homeCurrency] || 86.85;
+    const destCurrency = user?.active_journey_currency || existingJourney?.destination_currency || "USD";
+    const destRate = rates[destCurrency] || 1.0;
+    return destRate / homeRate;
+  };
+
   // Penalty Calculation Breakdown for active travel wallet balance
   const travelBalance = user?.travel_wallet_balance || 0;
-  const exchangeRateUsed = existingJourney?.exchange_rate || 0.0115;
+  const exchangeRateUsed = getDestRate();
   const grossRefundHome = travelBalance > 0
     ? exchangeRateUsed > 0
       ? travelBalance / exchangeRateUsed
@@ -249,8 +288,16 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   const netRefund = Math.max(0, grossRefundHome - penaltyFee);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#08131d] border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl shadow-emerald-950/40 text-white max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={() => {
+        if (!isCancelling && !isSubmitting) onClose();
+      }}
+    >
+      <div
+        className="relative w-full max-w-lg bg-[#061824] border border-emerald-500/20 rounded-3xl p-5 sm:p-6 shadow-2xl shadow-emerald-950/40 text-white max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -261,7 +308,7 @@ export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
 
         {/* Title Header */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-black shadow-lg shadow-emerald-500/20">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <Plane className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>

@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import React from "react";
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { TrustMarquee } from "@/components/landing/TrustMarquee";
@@ -14,23 +12,6 @@ import { CtaBanner } from "@/components/landing/CtaBanner";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export default function LandingPage() {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && user) {
-      router.replace("/app");
-    }
-  }, [user, isLoading, router]);
-
-  if (!isLoading && user) {
-    return (
-      <div className="min-h-screen bg-[#040D14] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-[#040D14] text-[#F5F7FA] relative selection:bg-emerald-500/30 selection:text-emerald-200">
       {/* Top Glassmorphic Navigation */}

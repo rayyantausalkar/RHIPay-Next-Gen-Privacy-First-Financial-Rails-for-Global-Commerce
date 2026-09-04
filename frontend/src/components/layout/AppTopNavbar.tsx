@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
-  ShieldCheck,
   Bell,
   User,
   ShieldAlert,
@@ -45,8 +45,15 @@ export const AppTopNavbar: React.FC<AppTopNavbarProps> = ({
                 onClick={() => onSelectTab("home")}
                 className="flex items-center gap-2.5 group cursor-pointer text-left"
               >
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40 flex-shrink-0 group-hover:scale-105 transition-transform">
-                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5]" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                  <Image
+                    src="/rhi_without_bg.svg"
+                    alt="RHI Pay Logo"
+                    width={40}
+                    height={40}
+                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]"
+                    priority
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -71,11 +78,10 @@ export const AppTopNavbar: React.FC<AppTopNavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectTab(activeTab === "admin" ? "home" : "admin")}
-                  className={`px-3 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    activeTab === "admin"
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${activeTab === "admin"
                       ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
                       : "bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"
-                  }`}
+                    }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Admin Bank</span>
