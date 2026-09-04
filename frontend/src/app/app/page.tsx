@@ -16,8 +16,8 @@ import { CorrespondentBankAdminDashboard } from "@/components/admin/Corresponden
 import { ModernSendModal } from "@/components/send/ModernSendModal";
 import { ModernReceiveModal } from "@/components/receive/ModernReceiveModal";
 import { JourneyPlanningModal } from "@/components/journey/JourneyPlanningModal";
+import { API_BASE } from "@/lib/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export default function AppPage() {
   const router = useRouter();

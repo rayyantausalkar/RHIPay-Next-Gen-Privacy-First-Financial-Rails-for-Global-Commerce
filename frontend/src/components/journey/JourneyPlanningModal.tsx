@@ -52,7 +52,8 @@ const DESTINATION_COUNTRIES: DestinationCountry[] = [
   { code: "BR", name: "Brazil", flag: "🇧🇷", currency: "BRL", rateToUSD: 5.75 },
 ];
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { API_BASE } from "@/lib/config";
+
 
 export const JourneyPlanningModal: React.FC<JourneyPlanningModalProps> = ({
   isOpen,

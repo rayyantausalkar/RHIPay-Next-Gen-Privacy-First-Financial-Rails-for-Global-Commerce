@@ -68,8 +68,8 @@ import {
   SpokeListResponse,
 } from "@/types/payment";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+import { API_BASE as API_BASE_URL } from "./config";
+
 
 export async function getNetworkSpokes(): Promise<SpokeListResponse> {
   const res = await fetch(`${API_BASE_URL}/network/spokes`, {
