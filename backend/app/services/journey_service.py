@@ -64,13 +64,8 @@ class JourneyService:
             req_id = f"JR-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
             now = datetime.now(timezone.utc)
 
-            # Deduct from home wallet balance and credit to travel wallet
-            user.wallet_balance = max(0.0, round(user.wallet_balance - req_home_amount, 2))
-            user.travel_wallet_balance = round((user.travel_wallet_balance or 0.0) + dest_amt, 2)
-            user.active_journey_country = dest_country
-            user.active_journey_currency = dest_currency
-            session.add(user)
-
+            # Manual approval requirement: Do NOT deduct funds or credit travel wallet yet.
+            # Record is created in PENDING status for admin review.
             record = JourneyRequestRecord(
                 request_id=req_id,
                 user_id=user.user_id,
@@ -89,51 +84,21 @@ class JourneyService:
                 exchange_rate=float(inverse_rate),
                 passport_data_url=req.passport_data_url,
                 passport_filename=req.passport_filename or "passport_scan.pdf",
-                status="APPROVED",
-                reviewed_at=now,
-                reviewed_by="Automated Nexus Clearance Engine",
+                status="PENDING",
+                reviewed_at=None,
+                reviewed_by=None,
                 created_at=now,
             )
             session.add(record)
-
-            # Record immutable transaction in ledger/transactions
-            tx_record = TransactionRecord(
-                transaction_id=f"TX-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}",
-                uetr=str(uuid.uuid4()),
-                sender_user_id=user.user_id,
-                sender_name=user.name,
-                sender_proxy=user.proxy_value,
-                sender_country=user.home_country,
-                sender_currency=home_currency,
-                sender_amount=req_home_amount,
-                sender_account_number=user.account_number,
-                recipient_user_id=user.user_id,
-                recipient_name=f"RHI Pay Travel Vault ({dest_country})",
-                recipient_proxy=f"WALLET-{dest_currency}",
-                recipient_country=dest_country,
-                recipient_currency=dest_currency,
-                recipient_amount=dest_amt,
-                recipient_account_number=f"RHIVLT{dest_currency}",
-                exchange_rate=float(inverse_rate),
-                purpose_code="TRAVEL_ALLOCATION",
-                status="SETTLED",
-                category="JOURNEY_ALLOCATION",
-                iso_status="ACCP_SETTLED_FUNDS_AVAILABLE",
-                note=f"Approved travel exchange allocation for {dest_country}",
-                created_at=now,
-            )
-            session.add(tx_record)
-
             session.commit()
             session.refresh(record)
-            session.refresh(user)
 
-            # Send allocation notification
+            # Send submission notification
             notification_service.create_notification(
                 user_id=user.user_id,
-                title="✈️ Travel Currency Allocated!",
-                message=f"Converted {home_currency} {req_home_amount:,.2f} from {user.bank_name}. {dest_currency} {dest_amt:,.2f} credited to your RHI Pay Travel Wallet for travel to {dest_country}.",
-                notif_type="JOURNEY_APPROVAL",
+                title="✈️ Travel Request Submitted",
+                message=f"Your travel currency request of {home_currency} {req_home_amount:,.2f} for {dest_country} has been submitted. Pending review by Correspondent Bank authorities.",
+                notif_type="JOURNEY_SUBMITTED",
             )
 
             return record
@@ -164,44 +129,84 @@ class JourneyService:
             if not record:
                 raise ValueError(f"Journey request {request_id} not found")
 
+            if record.status in ["CANCELLED", "REJECTED"]:
+                raise ValueError(f"Cannot approve a {record.status.lower()} journey request")
+
             # If already approved and no custom amount provided, return
             if record.status == "APPROVED" and not approve_data.custom_amount_approved:
                 return record
 
-            record.status = "APPROVED"
-            record.reviewed_at = datetime.now(timezone.utc)
-            record.reviewed_by = approve_data.admin_email
-
             user = session.exec(select(UserRecord).where(UserRecord.user_id == record.user_id)).first()
-            if user:
-                if approve_data.custom_amount_approved and approve_data.custom_amount_approved != record.home_amount_requested:
-                    added_home = approve_data.custom_amount_approved
-                    delta_home = added_home - record.home_amount_requested
-                    dest_amt = round(added_home * record.exchange_rate, 2)
-                    delta_dest = dest_amt - record.destination_amount_calculated
-                    record.home_amount_requested = added_home
-                    record.destination_amount_calculated = dest_amt
-                    user.wallet_balance = max(0.0, round(user.wallet_balance - delta_home, 2))
-                    user.travel_wallet_balance = max(0.0, round((user.travel_wallet_balance or 0.0) + delta_dest, 2))
-                elif record.status != "APPROVED":
-                    added_home = record.home_amount_requested
-                    dest_amt = record.destination_amount_calculated
-                    user.wallet_balance = max(0.0, round(user.wallet_balance - added_home, 2))
-                    user.travel_wallet_balance = round((user.travel_wallet_balance or 0.0) + dest_amt, 2)
+            if not user:
+                raise ValueError(f"User {record.user_id} not found")
 
-                user.active_journey_country = record.destination_country
-                user.active_journey_currency = record.destination_currency
-                session.add(user)
+            # Determine approved home amount
+            home_amount = (
+                float(approve_data.custom_amount_approved)
+                if approve_data.custom_amount_approved
+                else record.home_amount_requested
+            )
+            dest_amt = round(home_amount * record.exchange_rate, 2)
 
+            # Check if user has sufficient funds in home wallet at approval time
+            if user.wallet_balance < home_amount:
+                raise ValueError(
+                    f"Insufficient funds in user home bank account ({user.bank_name}). "
+                    f"Available: {record.home_currency} {user.wallet_balance:,.2f}, Required: {record.home_currency} {home_amount:,.2f}."
+                )
+
+            # Execute currency exchange: deduct from home wallet, credit to travel wallet
+            user.wallet_balance = max(0.0, round(user.wallet_balance - home_amount, 2))
+            user.travel_wallet_balance = round((user.travel_wallet_balance or 0.0) + dest_amt, 2)
+            user.active_journey_country = record.destination_country
+            user.active_journey_currency = record.destination_currency
+            session.add(user)
+
+            now = datetime.now(timezone.utc)
+            record.status = "APPROVED"
+            record.home_amount_requested = home_amount
+            record.destination_amount_calculated = dest_amt
+            record.reviewed_at = now
+            record.reviewed_by = approve_data.admin_email
             session.add(record)
+
+            # Record immutable transaction in ledger/transactions upon manual approval
+            tx_record = TransactionRecord(
+                transaction_id=f"TX-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}",
+                uetr=str(uuid.uuid4()),
+                sender_user_id=user.user_id,
+                sender_name=user.name,
+                sender_proxy=user.proxy_value,
+                sender_country=user.home_country,
+                sender_currency=record.home_currency,
+                sender_amount=home_amount,
+                sender_account_number=user.account_number,
+                recipient_user_id=user.user_id,
+                recipient_name=f"RHI Pay Travel Vault ({record.destination_country})",
+                recipient_proxy=f"WALLET-{record.destination_currency}",
+                recipient_country=record.destination_country,
+                recipient_currency=record.destination_currency,
+                recipient_amount=dest_amt,
+                recipient_account_number=f"RHIVLT{record.destination_currency}",
+                exchange_rate=record.exchange_rate,
+                purpose_code="TRAVEL_ALLOCATION",
+                status="SETTLED",
+                category="JOURNEY_ALLOCATION",
+                iso_status="ACCP_SETTLED_FUNDS_AVAILABLE",
+                note=f"Approved travel exchange allocation for {record.destination_country}",
+                created_at=now,
+            )
+            session.add(tx_record)
+
             session.commit()
             session.refresh(record)
+            session.refresh(user)
 
             # Send approval notification
             notification_service.create_notification(
                 user_id=record.user_id,
                 title="🎉 Travel Currency Approved!",
-                message=f"RHI Pay authorities approved your travel exchange. {record.destination_currency} {record.destination_amount_calculated:,.2f} ({record.home_currency} {record.home_amount_requested:,.2f}) has been credited to your RHI Pay wallet for travel to {record.destination_country}.",
+                message=f"RHI Pay authorities approved your travel exchange. {record.destination_currency} {dest_amt:,.2f} ({record.home_currency} {home_amount:,.2f}) has been credited to your RHI Pay wallet for travel to {record.destination_country}.",
                 notif_type="JOURNEY_APPROVAL",
             )
 

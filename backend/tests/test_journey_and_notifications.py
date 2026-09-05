@@ -18,16 +18,21 @@ def test_journey_lifecycle():
         "purpose_of_travel": "Tourism & Leisure Vacation",
         "start_date": "2026-09-15",
         "end_date": "2026-09-30",
-        "home_amount_requested": 50000.0,
+        "home_amount_requested": 15000.0,
         "passport_filename": "passport_rahul.pdf",
     }
     res = client.post("/api/v1/journey/request", json=req_payload)
     assert res.status_code == 201
     j_data = res.json()
-    assert j_data["status"] in ["PENDING", "APPROVED"]
+    assert j_data["status"] == "PENDING"
     assert j_data["destination_country"] == "US"
     assert j_data["destination_currency"] == "USD"
     req_id = j_data["request_id"]
+
+    # Verify user balance is NOT deducted yet while request is PENDING
+    pre_user_res = client.get(f"/api/v1/auth/user/{user_id}")
+    assert pre_user_res.status_code == 200
+    assert pre_user_res.json()["active_journey_country"] is None
 
     # 3. Check notifications
     notif_res = client.get(f"/api/v1/notifications/user/{user_id}")
@@ -47,7 +52,7 @@ def test_journey_lifecycle():
     assert approve_res.status_code == 200
     assert approve_res.json()["status"] == "APPROVED"
 
-    # 6. Verify User Balance
+    # 6. Verify User Balance after manual approval
     user_res = client.get(f"/api/v1/auth/user/{user_id}")
     assert user_res.status_code == 200
     assert user_res.json()["active_journey_country"] == "US"
@@ -188,7 +193,7 @@ def test_shared_travel_journey_wallet_p2p_transfer():
         "purpose_of_travel": "Holiday in NYC",
         "start_date": "2026-10-01",
         "end_date": "2026-10-15",
-        "home_amount_requested": 40000.0,
+        "home_amount_requested": 20000.0,
     }).json()
     client.post(f"/api/v1/journey/admin/approve/{rahul_req['request_id']}", json={"admin_email": "admin.rhipay@gmail.com"})
 
