@@ -47,6 +47,8 @@ export interface AdminUserItem {
   wallet_balance: number;
   travel_wallet_balance: number;
   active_journey_country?: string | null;
+  active_journey_currency?: string | null;
+  preferred_currency?: string | null;
   kyc_status: string;
   role: string;
   is_blocked: boolean;
@@ -158,14 +160,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [bankDirectory, setBankDirectory] = useState<Record<string, BankItem[]>>({});
 
-  // Hydrate auth state from localStorage
+  const refreshUser = async () => {
+    try {
+      const storedUser = localStorage.getItem("rhipay_user");
+      const currentId = user?.id || (storedUser ? JSON.parse(storedUser).id : null);
+      if (!currentId) return;
+
+      const res = await fetch(`${API_BASE}/auth/user/${currentId}`);
+      if (res.ok) {
+        const freshUser = await res.json();
+        setUser(freshUser);
+        localStorage.setItem("rhipay_user", JSON.stringify(freshUser));
+      }
+    } catch (err) {
+      console.warn("Could not refresh user:", err);
+    }
+  };
+
+  // Hydrate auth state from localStorage and immediately refresh from server
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem("rhipay_token");
       const storedUser = localStorage.getItem("rhipay_user");
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+        // Immediately fetch latest state from server
+        if (parsed?.id) {
+          fetch(`${API_BASE}/auth/user/${parsed.id}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((fresh) => {
+              if (fresh) {
+                setUser(fresh);
+                localStorage.setItem("rhipay_user", JSON.stringify(fresh));
+              }
+            })
+            .catch(() => {});
+        }
       }
     } catch (e) {
       console.error("Failed to parse stored auth session:", e);
@@ -173,6 +205,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, []);
+
+  // Periodic user profile & balance synchronization polling
+  useEffect(() => {
+    if (!user?.id) return;
+    const interval = setInterval(() => {
+      refreshUser();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const fetchBanks = async () => {
     try {
@@ -191,21 +232,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     fetchBanks();
   }, []);
-
-  const refreshUser = async () => {
-    const currentId = user?.id || (localStorage.getItem("rhipay_user") ? JSON.parse(localStorage.getItem("rhipay_user")!).id : null);
-    if (!currentId) return;
-    try {
-      const res = await fetch(`${API_BASE}/auth/user/${currentId}`);
-      if (res.ok) {
-        const freshUser = await res.json();
-        setUser(freshUser);
-        localStorage.setItem("rhipay_user", JSON.stringify(freshUser));
-      }
-    } catch (err) {
-      console.warn("Could not refresh user:", err);
-    }
-  };
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -261,16 +287,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await fetch(`${API_BASE}/auth/change-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, current_pin: currentPin, new_pin: newPin }),
+        body: JSON.stringify({
+          user_id: user.id,
+          current_pin: currentPin,
+          new_pin: newPin,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        return { success: false, error: data.detail || "Failed to update UPI PIN" };
+        return { success: false, error: data.detail || "Failed to update UPI PIN." };
       }
-      await refreshUser();
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message || "Failed to update UPI PIN" };
+      return { success: false, error: err.message || "Could not change UPI PIN." };
     }
   };
 
@@ -301,6 +330,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) {
         return { success: false, error: data.detail || "Incorrect UPI PIN." };
       }
+
+      // Update local state and storage immediately with decrypted verified balance
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated: UserProfile = {
+          ...prev,
+          wallet_balance: data.wallet_balance,
+          travel_wallet_balance: data.travel_wallet_balance,
+          active_journey_country: data.active_journey_country,
+          active_journey_currency: data.active_journey_currency,
+        };
+        localStorage.setItem("rhipay_user", JSON.stringify(updated));
+        return updated;
+      });
+
       return { success: true, data };
     } catch (err: any) {
       return { success: false, error: err.message || "Could not check balance." };

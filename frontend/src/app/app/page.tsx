@@ -52,8 +52,13 @@ export default function AppPage() {
   };
 
   useEffect(() => {
+    if (!user?.id) return;
     fetchUserJourney();
-  }, [user]);
+    const interval = setInterval(() => {
+      fetchUserJourney();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();

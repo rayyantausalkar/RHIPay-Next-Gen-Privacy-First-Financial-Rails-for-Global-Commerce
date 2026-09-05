@@ -141,6 +141,8 @@ class AdminUserManagementItem(BaseModel):
     wallet_balance: float
     travel_wallet_balance: float
     active_journey_country: Optional[str] = None
+    active_journey_currency: Optional[str] = None
+    preferred_currency: Optional[str] = "USD"
     kyc_status: str
     role: str
     is_blocked: bool

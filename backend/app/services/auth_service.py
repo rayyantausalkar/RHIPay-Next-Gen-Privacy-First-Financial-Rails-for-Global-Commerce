@@ -549,6 +549,8 @@ class AuthService:
                     wallet_balance=r.wallet_balance,
                     travel_wallet_balance=r.travel_wallet_balance,
                     active_journey_country=r.active_journey_country,
+                    active_journey_currency=r.active_journey_currency,
+                    preferred_currency=r.preferred_currency or "USD",
                     kyc_status=r.kyc_status,
                     role=r.role or "USER",
                     is_blocked=r.is_blocked,

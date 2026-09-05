@@ -1162,11 +1162,11 @@ export const CorrespondentBankAdminDashboard: React.FC<CorrespondentBankAdminDas
 
                   <div className="flex items-center gap-3 text-xs font-mono pt-0.5 flex-wrap">
                     <span className="text-zinc-400">
-                      Home Balance: <strong className="text-emerald-300">{Number(u.wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      Home Balance: <strong className="text-emerald-300">{u.preferred_currency || "USD"} {Number(u.wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                     </span>
                     {u.active_journey_country && (
-                      <span className="text-cyan-300 font-semibold bg-cyan-950/40 px-2 py-0.5 rounded-lg border border-cyan-500/30">
-                        ✈️ Travel Balance ({u.active_journey_country}): {Number(u.travel_wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <span className="text-cyan-300 font-semibold bg-cyan-950/40 px-2.5 py-0.5 rounded-lg border border-cyan-500/30">
+                        ✈️ Travel Balance ({u.active_journey_country}): {u.active_journey_currency || "USD"} {Number(u.travel_wallet_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     )}
                   </div>

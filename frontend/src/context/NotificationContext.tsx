@@ -32,7 +32,7 @@ import { API_BASE } from "@/lib/config";
 
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -57,6 +57,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (data.length > 0) {
           const newest = data[0];
           if (lastNotifId && newest.notification_id !== lastNotifId && !newest.is_read) {
+            refreshUser();
             if (newest.type === "JOURNEY_APPROVAL") {
               toast.success(newest.title, { description: newest.message, duration: 6000 });
             } else if (newest.type === "JOURNEY_REJECTION") {
@@ -71,7 +72,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch {
       // safe fallback
     }
-  }, [user, lastNotifId]);
+  }, [user, lastNotifId, refreshUser]);
 
   useEffect(() => {
     fetchNotifications();
