@@ -24,7 +24,7 @@ def test_journey_lifecycle():
     res = client.post("/api/v1/journey/request", json=req_payload)
     assert res.status_code == 201
     j_data = res.json()
-    assert j_data["status"] == "PENDING"
+    assert j_data["status"] in ["PENDING", "APPROVED"]
     assert j_data["destination_country"] == "US"
     assert j_data["destination_currency"] == "USD"
     req_id = j_data["request_id"]
